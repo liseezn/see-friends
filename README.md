@@ -1,5 +1,5 @@
 # SEE~Friends 友情链接管理插件
-## v3.0.0 稳定完整版
+## v3.0.0 版
 
 [![GitHub Stars](https://img.shields.io/github/stars/liseezn/see-friends?style=flat-square)](https://github.com/liseezn/see-friends)
 [![GitHub Forks](https://img.shields.io/github/forks/liseezn/see-friends?style=flat-square)](https://github.com/liseezn/see-friends)

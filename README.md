@@ -1,191 +1,203 @@
-SEE~Friends 友情链接管理
+# SEE~Friends 友情链接管理插件
+## v3.0.0 稳定完整版
 
-SEE~Friends 是一款功能完善的 WordPress 友情链接管理插件。它在原生链接管理器的基础上，增加了前端申请、后台审核、反链检测、随机排序等实用功能，让网站之间的友情链接交换更轻松、更规范。
+[![GitHub Stars](https://img.shields.io/github/stars/liseezn/see-friends?style=flat-square)](https://github.com/liseezn/see-friends)
+[![GitHub Forks](https://img.shields.io/github/forks/liseezn/see-friends?style=flat-square)](https://github.com/liseezn/see-friends)
+[![GitHub Issues](https://img.shields.io/github/issues/liseezn/see-friends?style=flat-square)](https://github.com/liseezn/see-friends/issues)
+[![GitHub License](https://img.shields.io/github/license/liseezn/see-friends?style=flat-square)](https://github.com/liseezn/see-friends/blob/main/LICENSE)
+[![WordPress Version](https://img.shields.io/badge/WordPress-5.6+-0073aa?style=flat-square)](https://cn.wordpress.org/)
+[![PHP Version](https://img.shields.io/badge/PHP-7.4+-777bb4?style=flat-square)](https://www.php.net/)
 
-插件已兼容国内环境，无需额外配置即可使用。
+专为 WordPress 打造的**智能化友情链接管理插件**，完美兼容国内环境，支持前端申请、后台审核、智能反链检测、定时监控、邮件提醒，一键管理所有友链。
 
-✨ 主要特点
+项目仓库：[https://github.com/liseezn/see-friends](sslocal://flow/file_open?url=https%3A%2F%2Fgithub.com%2Fliseezn%2Fsee-friends&flow_extra=eyJsaW5rX3R5cGUiOiJjb2RlX2ludGVycHJldGVyIn0=)
 
-\- 原生链接管理器增强：自动启用 WordPress 内置链接管理，兼容所有现有主题。
+---
 
-\- 前端申请表单：访客可在线提交友链申请，信息自动保存至后台。
+## ✨ 插件简介
+- 基于 WordPress 原生链接管理器开发，无冗余代码、轻量高效
+- 支持**智能穿透式反链检测**，覆盖主页/导航/折叠菜单/友人帐/友链子页面全场景
+- 自带可视化后台配置面板，无需修改代码即可自定义所有功能
+- 支持申请审核、状态同步、自动清理、批量检测、掉链提醒全流程自动化
+- 适配深色/浅色主题，前端样式美观，支持短代码一键调用
+- 完全开源，持续维护，欢迎提交 Issue & PR
 
-\- 后台审核系统：支持通过/拒绝申请，同步创建/删除链接，并发送邮件通知。
+---
 
-\- 反链检测：一键检测对方网站是否已添加本站链接，避免单方友链。
+## 🚀 核心功能
+### 1. 智能反链检测（核心）
+- 全场景覆盖：主页直链、导航栏、页脚、三条杠折叠菜单、友人帐、友链子页面
+- 多语言关键词自动识别：`友情链接/友链/友人帐/partner/friends/links` 等
+- 支持单条手动检测 + 批量全量检测 + 定时自动检测，检测结果实时记录
+- 防拦截、防超时、异常自动跳过，不崩溃、不报错
 
-\- 随机排序显示：短代码支持随机展示友链，可自定义数量、样式、是否显示图标及描述。
+### 2. 可视化后台配置
+- 独立配置面板，挂载在 WordPress 后台「链接」菜单下
+- 分模块配置：基础设置/反链检测/邮件通知/前端显示/数据同步
+- 一键开关所有功能，自定义参数无需修改代码
 
-\- 图标支持：可手动指定网站图标地址，前端展示更美观。
+### 3. 友链申请与审核
+- 前端申请表单短代码，支持用户自助提交友链申请
+- 后台一键审核：通过/拒绝/检测反链，操作便捷
+- 审核状态自动同步至原生链接管理器，上线/下架自动处理
 
-\- 自动清理过期申请：每日自动删除超过指定天数的待审核/已拒绝申请，保持数据库整洁。
+### 4. 数据同步与管理
+- 原生链接 → 插件申请列表**一键同步**，统一管理存量友链
+- 自动清理过期待审核/已拒绝申请，支持自定义过期天数
+- 回收站防误触，所有危险操作增加二次确认弹窗
 
-\- 完全开源：基于 GPLv2 许可证发布，欢迎二次开发和贡献。
+### 5. 自动化通知提醒
+- 申请通过/拒绝，自动发送邮件通知申请人
+- 新申请提交，自动发送邮件通知管理员
+- 友链失效自动发邮件提醒，支持自定义重复提醒间隔
+### 6. 前端展示
+- 随机排序友链短代码，支持图标/描述/尺寸自定义
+- 响应式卡片布局，完美适配手机/电脑端
+- 原生兼容 Argon 等深色主题，样式自适应
+---
+## 📋 环境要求
+- WordPress 5.6 及以上版本
+- PHP 7.4 及以上版本
+- 服务器未禁用 `wp_remote_get` 函数（支持外部网络请求）
+---
+## 📦 安装步骤
+### 方式一：GitHub 手动下载安装
+1. 从仓库 [Releases 页面](sslocal://flow/file_open?url=https%3A%2F%2Fgithub.com%2Fliseezn%2Fsee-friends%2Freleases&flow_extra=eyJsaW5rX3R5cGUiOiJjb2RlX2ludGVycHJldGVyIn0=) 下载最新版 `see-friends.zip` 压缩包
+2. 进入 WordPress 后台 → 插件 → 安装插件 → 上传插件，选择下载的 ZIP 包
+3. 安装完成后，点击「启用插件」即可
+### 方式二：Git 克隆安装（服务器部署）
+1. 进入服务器 WordPress 插件目录：
+```bash
+cd /www/wwwroot/你的网站域名/wp-content/plugins/
+```
+2. 克隆 GitHub 仓库：
+```bash
+git clone https://github.com/liseezn/see-friends.git
+```
+3. 进入 WordPress 后台 → 插件，找到「SEE~Friends-友情链接管理」点击启用即可
+### 方式三：单文件手动安装
+1. 从仓库 [Releases 页面](sslocal://flow/file_open?url=https%3A%2F%2Fgithub.com%2Fliseezn%2Fsee-friends%2Freleases&flow_extra=eyJsaW5rX3R5cGUiOiJjb2RlX2ludGVycHJldGVyIn0=) 下载最新版 `see-friends.php` 单文件
+2. 上传至网站 `/wp-content/plugins/` 目录
+3. 后台启用插件
+> 插件启用后会自动初始化配置、注册定时任务，无需额外手动配置
+---
+## ⚡ 快速使用
+### 前端短代码
+1. **友链申请表单**
+```
+[link_apply_form]
+```
+2. **随机友链列表**
+```
+[random_bookmarks]
+```
+支持自定义参数：
 
-📥 安装
-
-1. 从 GitHub Releases 下载最新版本的插件压缩包。
-
-2. 登录 WordPress 后台 → 插件 → 安装插件 → 上传插件，选择下载的  .zip  文件并安装。
-
-3. 安装完成后，点击“启用插件”。
-
-4. 插件启用后，WordPress 侧边栏会出现 链接 和 链接申请 两个菜单。
-
-环境要求：WordPress 5.0+，PHP 7.2+。
-
-🚀 使用指南
-
-1\. 管理友情链接
-
-\- 通过 链接 → 所有链接 可手动添加、编辑或删除友情链接。
-
-\- 每个链接支持名称、网址、描述、图标、分类等字段。
-
-\- 在 链接 → 链接分类 中可以管理链接分类。
-
-2\. 处理链接申请
-
-\- 前端用户提交的申请会显示在 链接申请 菜单中。
-
-\- 点击申请标题可查看详情，包括网站名称、网址、图标、介绍、联系邮箱等。
-
-\- 在申请详情页面或列表行操作中，可以进行：
-
-\- 通过：将申请转为正式链接（自动添加到链接管理器），并发送邮件通知申请人。
-
-\- 拒绝：删除申请（如果已添加链接则同时删除），并发送拒绝邮件。
-
-\- 检测反链：即时检查对方网站是否已添加本站链接。
-
-3\. 前端申请表单
-
-在任意页面或小工具中插入短代码  \[link\_apply\_form\]  即可显示一个完整的申请表单。
-
-表单字段：
-
-\- 网站名称（必填）
-
-\- 网站链接地址（必填）
-
-\- 网站图标地址（可选，不填则不显示图标）
-
-\- 网站介绍（必填）
-
-\- 联系邮箱（必填，用于接收审核结果通知）
-
-提交后，管理员会收到邮件通知，申请人将根据审核结果收到邮件。
-
-4\. 随机友情链接展示
-
-使用短代码  \[random\_bookmarks\]  可以在任何地方随机显示友链。支持以下参数：
-
-参数 说明 默认值 示例
-
-category 指定链接分类ID（多个用逗号分隔） 空（全部）  category="1,2" 
-
-limit 显示数量，-1表示全部 -1  limit="10" 
-
-target 链接打开方式  \_blank   target="\_blank" 
-
-show\_description 是否显示链接描述 false  show\_description="true" 
-
-show\_image 是否显示网站图标 true  show\_image="false" 
-
-image\_size 图标尺寸（像素） 40  image\_size="32" 
+| 参数 | 说明 | 默认值 |
+| :--- | :--- | :--- |
+| `category` | 链接分类ID | 空（全部分类） |
+| `limit` | 显示链接数量 | -1（全部显示） |
+| `show_image` | 是否显示网站图标 | true |
+| `show_description` | 是否显示网站描述 | true |
+| `image_size` | 图标尺寸（单位：px） | 40 |
+| `target` | 链接打开方式 | _blank |
 
 示例：
+```
+[random_bookmarks limit="20" show_image="true" show_description="true" image_size="32"]
+```
 
-html
+### 后台操作
+1. **链接 → 链接申请**：审核用户提交的友链申请、单条反链检测
+2. **链接 → 友链设置**：全局功能配置、一键批量检测所有友链、存量链接同步
+3. **链接 → 所有链接**：管理已上线的友链、分类管理
+---
 
-\[random\_bookmarks limit="5" show\_description="true" image\_size="32"\]
+## ⚙️ 配置面板说明
+### 基础设置
+- 自动清理过期申请开关
+- 申请过期天数（默认30天）
+### 反链检测设置
+- 定时自动检测开关
+- 检测频率：每天/每天两次/每周
+- 失效友链提醒邮箱
+- 重复提醒间隔（避免邮件轰炸）
 
-显示效果：
+### 邮件通知设置
+- 审核通过邮件通知（申请人）
+- 审核拒绝邮件通知（申请人）
+- 新申请邮件通知（管理员）
 
-\- 采用网格布局（响应式），每个链接显示为卡片样式。
+### 前端显示设置
+- 前端申请表单开关
+- 友链列表默认显示配置
+- 图标默认尺寸设置
 
-\- 鼠标悬停有微动效，默认白色背景，浅绿色边框。
+### 数据同步
+- 一键同步原生链接至插件申请列表
+- 自动去重，不重复创建数据
 
-\- 若未填写图标地址，则不显示图片区域。
+---
 
-5\. 反链检测
+## 📝 更新日志
+### v3.0.0（2026-04-04）
+#### 🎉 新增功能
+1. 新增**可视化后台配置面板**，全功能可视化设置，无需修改代码
+2. 新增**智能穿透式反链检测**，支持友人帐/折叠菜单/子页面/多语言关键词全场景适配
+3. 新增**原生链接一键同步**功能，统一管理存量友链
+4. 新增**定时自动批量检测**，支持每日/每日两次/每周自动巡检
+5. 新增**友链失效邮件提醒**，自定义重复提醒间隔，防掉链
+6. 新增**操作二次确认**，解决回收站/审核按钮误触问题
+7. 新增完整的权限校验与安全防护机制
 
-插件会在审核时自动检测对方网站是否包含本站链接。如需手动检测，可在申请详情页或列表行点击“检测反链”。
+#### 🐛 问题修复
+1. 修复回收站操作「安全验证失败，请刷新重试」的核心问题
+2. 修复批量检测导致网站崩溃/500错误的问题
+3. 修复审核通过后不同步至链接管理器的问题
+4. 修复短代码不解析、直接显示原文的问题
+5. 修复反链检测漏检、误判的问题
+6. 修复深色主题样式错乱、不兼容的问题
 
-检测逻辑：
+#### ⚡ 性能优化
+1. 检测逻辑增加超时保护、异常捕获、内存清理，避免大量链接检测时超时
+2. 优化请求频率，增加间隔机制，避免被目标服务器拦截
+3. 精简冗余代码，轻量高效，不影响网站加载速度
+4. 申请列表UI优化，状态标识更清晰，操作更便捷
 
-\- 抓取对方网站首页 HTML。
+完整更新日志：[GitHub Releases](sslocal://flow/file_open?url=https%3A%2F%2Fgithub.com%2Fliseezn%2Fsee-friends%2Freleases&flow_extra=eyJsaW5rX3R5cGUiOiJjb2RlX2ludGVycHJldGVyIn0=)
 
-\- 判断是否包含本站域名（忽略 www 前缀）。
+---
 
-\- 结果将显示在申请列表中。
+## ❓ 常见问题
+### 1. 批量检测报错/网站崩溃？
+v3.0.0 已彻底修复该问题，增加了超时保护、异常捕获、内存清理机制，可放心使用。如仍有问题，可前往 [GitHub Issues](sslocal://flow/file_open?url=https%3A%2F%2Fgithub.com%2Fliseezn%2Fsee-friends%2Fissues&flow_extra=eyJsaW5rX3R5cGUiOiJjb2RlX2ludGVycHJldGVyIn0=) 提交反馈。
 
-🛠 自定义开发
+### 2. 反链检测不到？
+插件支持主页、导航菜单、折叠菜单、友人帐、友链子页面全场景检测，覆盖绝大多数站点的友链布局。如遇特殊站点检测不到，可提交 Issue 反馈。
 
-修改过期清理天数
+### 3. 如何同步之前的存量友链？
+进入后台「链接 → 友链设置 → 数据同步」，点击「一键同步所有链接」即可，自动去重，不会重复创建数据。
 
-在插件主文件中找到常量定义：
+### 4. 申请表单不显示？
+检查「前端显示设置」是否开启了申请表单开关，页面内使用短代码 `[link_apply_form]` 即可。
 
-php
+---
 
-define('FABB\_EXPIRE\_DAYS', 30);
+## 🤝 贡献指南
+欢迎参与本项目的开发与维护！
+1. Fork 本仓库：[https://github.com/liseezn/see-friends](sslocal://flow/file_open?url=https%3A%2F%2Fgithub.com%2Fliseezn%2Fsee-friends&flow_extra=eyJsaW5rX3R5cGUiOiJjb2RlX2ludGVycHJldGVyIn0=)
+2. 创建你的功能分支：`git checkout -b feature/AmazingFeature`
+3. 提交你的修改：`git commit -m 'Add some AmazingFeature'`
+4. 推送到分支：`git push origin feature/AmazingFeature`
+5. 提交 Pull Request
 
-修改数字即可调整申请保留天数（仅对“待审核”和“已拒绝”状态生效）。
+---
 
-调整样式
+## 📞 问题反馈
+- 功能建议、Bug 反馈：[GitHub Issues](sslocal://flow/file_open?url=https%3A%2F%2Fgithub.com%2Fliseezn%2Fsee-friends%2Fissues&flow_extra=eyJsaW5rX3R5cGUiOiJjb2RlX2ludGVycHJldGVyIn0=)
+- 作者博客：[https://liseezn.top](sslocal://flow/file_open?url=https%3A%2F%2Fliseezn.top&flow_extra=eyJsaW5rX3R5cGUiOiJjb2RlX2ludGVycHJldGVyIn0=)
 
-插件会以内联方式添加基础样式，如需覆盖，请在主题的  style.css  中使用更高选择器优先级，例如：
+---
 
-css
-
-.fabb-bookmarks-list {
-
-grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-
-}
-
-钩子与函数
-
-插件未提供额外钩子，但核心函数如  fabb\_check\_backlink()  等均可被其他插件或主题复用。
-
-📄 许可证
-
-本插件采用 GPLv2 或更高版本 开源许可证。您可以自由使用、修改、分发，但需保留版权声明和许可证文本。
-
-🤝 参与贡献
-
-欢迎通过 GitHub 提交 Issue 或 Pull Request：
-
-\- 项目地址：https://github.com/liseezn/see-friends
-
-\- 报告 Bug 或提出建议：https://github.com/liseezn/see-friends/issues
-
-❓ 常见问题
-
-Q：为什么我的网站没有“链接”菜单？
-
-A：WordPress 默认隐藏链接管理器，本插件已自动开启，请确认插件已正确激活。如果仍不显示，请检查是否有其他插件禁用了该功能。
-
-Q：前端申请表单提交后没有收到邮件？
-
-A：请确保 WordPress 可以正常发送邮件（可安装 SMTP 插件）。管理员和申请人邮箱地址务必填写正确。
-
-Q：反链检测提示“未检测到”，但实际已添加？
-
-A：可能对方网站限制了爬虫访问，或反链页面未在首页展示。您也可以手动在详情页再次检测。
-
-Q：如何让申请表单只显示在特定页面？
-
-A：使用短代码即可，将其插入页面内容或小工具中。
-
-Q：图标不显示？
-
-A：请确认链接管理中已填写正确的图标地址（必须是完整的图片 URL）。短代码参数  show\_image  需设置为  true （默认已开启）。
-
-📞 技术支持
-
-\- 通过 GitHub Issues 提交问题
-
-\- 作者主页：https://liseezn.top/
-
-感谢使用 SEE~Friends！ 如果您觉得有用，欢迎给项目点个 Star ⭐
+## 📄 开源协议
+本项目基于 **GPLv2 or later** 协议开源，可自由使用、修改、分发，详情请查看 [LICENSE](sslocal://flow/file_open?url=https%3A%2F%2Fgithub.com%2Fliseezn%2Fsee-friends%2Fblob%2Fmain%2FLICENSE&flow_extra=eyJsaW5rX3R5cGUiOiJjb2RlX2ludGVycHJldGVyIn0=) 文件。

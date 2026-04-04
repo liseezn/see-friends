@@ -200,4 +200,5 @@ v3.0.0 已彻底修复该问题，增加了超时保护、异常捕获、内存�
 ---
 
 ## 📄 开源协议
-本项目基于 **GPLv2 or later** 协议开源，可自由使用、修改、分发，详情请查看 [LICENSE](sslocal://flow/file_open?url=https%3A%2F%2Fgithub.com%2Fliseezn%2Fsee-friends%2Fblob%2Fmain%2FLICENSE&flow_extra=eyJsaW5rX3R5cGUiOiJjb2RlX2ludGVycHJldGVyIn0=) 文件。
+
+本项目采用 **GNU General Public License v3.0** 协议开源，相关权利与限制详见 [LICENSE](sslocal://flow/file_open?url=https%3A%2F%2Fgithub.com%2Fliseezn%2Fsee-friends%2Fblob%2Fmain%2FLICENSE&flow_extra=eyJsaW5rX3R5cGUiOiJjb2RlX2ludGVycHJldGVyIn0=)。

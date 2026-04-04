@@ -8,7 +8,7 @@
 [![WordPress Version](https://img.shields.io/badge/WordPress-5.6+-0073aa?style=flat-square)](https://cn.wordpress.org/)
 [![PHP Version](https://img.shields.io/badge/PHP-7.4+-777bb4?style=flat-square)](https://www.php.net/)
 
-专为 WordPress 打造的**智能化友情链接管理插件**，完美兼容国内环境，支持前端申请、后台审核、智能反链检测、定时监控、邮件提醒，一键管理所有友链。
+专为 WordPress 打造的**智能化友情链接管理插件**，支持前端申请、后台审核、智能反链检测、定时监控、邮件提醒，一键管理所有友链。
 
 项目仓库：[https://github.com/liseezn/see-friends](sslocal://flow/file_open?url=https%3A%2F%2Fgithub.com%2Fliseezn%2Fsee-friends&flow_extra=eyJsaW5rX3R5cGUiOiJjb2RlX2ludGVycHJldGVyIn0=)
 
@@ -65,17 +65,7 @@
 1. 从仓库 [Releases 页面](sslocal://flow/file_open?url=https%3A%2F%2Fgithub.com%2Fliseezn%2Fsee-friends%2Freleases&flow_extra=eyJsaW5rX3R5cGUiOiJjb2RlX2ludGVycHJldGVyIn0=) 下载最新版 `see-friends.zip` 压缩包
 2. 进入 WordPress 后台 → 插件 → 安装插件 → 上传插件，选择下载的 ZIP 包
 3. 安装完成后，点击「启用插件」即可
-### 方式二：Git 克隆安装（服务器部署）
-1. 进入服务器 WordPress 插件目录：
-```bash
-cd /www/wwwroot/你的网站域名/wp-content/plugins/
-```
-2. 克隆 GitHub 仓库：
-```bash
-git clone https://github.com/liseezn/see-friends.git
-```
-3. 进入 WordPress 后台 → 插件，找到「SEE~Friends-友情链接管理」点击启用即可
-### 方式三：单文件手动安装
+### 方式二：：单文件手动安装
 1. 从仓库 [Releases 页面](sslocal://flow/file_open?url=https%3A%2F%2Fgithub.com%2Fliseezn%2Fsee-friends%2Freleases&flow_extra=eyJsaW5rX3R5cGUiOiJjb2RlX2ludGVycHJldGVyIn0=) 下载最新版 `see-friends.php` 单文件
 2. 上传至网站 `/wp-content/plugins/` 目录
 3. 后台启用插件

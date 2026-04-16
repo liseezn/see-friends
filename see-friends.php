@@ -2,27 +2,23 @@
 /*
 Plugin Name: SEE~Friends 友情链接管理
 Plugin URI: https://github.com/liseezn/see-friends
-Description: 增强型WordPress友情链接管理插件，支持前端申请、后台审核、智能反链检测、定时监控、邮件提醒、自助修改、RSS展示
+Description: WordPress友情链接管理插件，支持前端申请、后台审核、智能反链检测、定时监控、邮件提醒、自助修改、RSS展示
 Version: 3.3.0
 Author: liseezn
 Author URI: https://liseezn.top
 License: GPLv3
 */
-
 // 禁止直接访问
 if (!defined('ABSPATH')) {
     exit;
 }
-
 // ====================== 0. 插件初始化与配置 ======================
 // 获取配置项
 function fabb_get_setting($key, $default = '') {
     $settings = get_option('fabb_settings', array());
     return isset($settings[$key]) ? $settings[$key] : $default;
 }
-
 // 插件激活时初始化默认配置
-register_activation_hook(__FILE__, 'fabb_plugin_init_default_settings');
 function fabb_plugin_init_default_settings() {
     $default_settings = array(
         // 基础设置
@@ -71,10 +67,7 @@ function fabb_plugin_init_default_settings() {
     if (empty($existing_settings)) {
         update_option('fabb_settings', $merged_settings);
     }
-    
-    fabb_plugin_activation();
 }
-
 // ====================== 1. 注册自定义文章类型 ======================
 add_action('init', 'fabb_register_apply_post_type');
 function fabb_register_apply_post_type() {
@@ -109,7 +102,6 @@ function fabb_register_apply_post_type() {
         'map_meta_cap' => true,
     ));
 }
-
 // ====================== 2. 后台菜单与配置页面 ======================
 add_action('admin_menu', 'fabb_add_admin_menu');
 function fabb_add_admin_menu() {
@@ -122,13 +114,11 @@ function fabb_add_admin_menu() {
         'fabb_render_settings_page'
     );
 }
-
 // ====================== 3. 后台配置页面（新增数据导入导出+RSS设置） ======================
 function fabb_render_settings_page() {
     if (!current_user_can('manage_links')) {
         wp_die('您没有权限访问此页面');
     }
-
     // 保存配置
     if (isset($_POST['fabb_settings_save']) && wp_verify_nonce($_POST['fabb_settings_nonce'], 'fabb_save_settings')) {
         $old_settings = get_option('fabb_settings', array());
@@ -175,13 +165,10 @@ function fabb_render_settings_page() {
         $new_settings['image_size_max'] = absint($_POST['image_size_max']);
         $new_settings['show_rss_feed'] = isset($_POST['show_rss_feed']) ? 'on' : 'off';
         $new_settings['desc_multi_line'] = isset($_POST['desc_multi_line']) ? 'on' : 'off';
-
         // 清除缓存
         wp_cache_delete('fabb_settings', 'options');
         wp_cache_delete('alloptions', 'options');
-
         $save_result = update_option('fabb_settings', $new_settings);
-
         // 重新调度定时任务
         wp_clear_scheduled_hook('fabb_auto_check_backlink_hook');
         if ($new_settings['auto_check_backlink'] === 'on') {
@@ -192,14 +179,12 @@ function fabb_render_settings_page() {
         if ($new_settings['rss_auto_update'] === 'on') {
             wp_schedule_event(time(), $new_settings['rss_update_frequency'], 'fabb_rss_auto_update_hook');
         }
-
         if ($save_result) {
             echo '<div class="notice notice-success is-dismissible"><p>✅ 设置保存成功！</p></div>';
         } else {
             echo '<div class="notice notice-warning is-dismissible"><p>⚠️ 设置未发生变化或保存失败</p></div>';
         }
     }
-
     // 手动批量检测
     if (isset($_POST['fabb_batch_check']) && wp_verify_nonce($_POST['fabb_batch_nonce'], 'fabb_batch_check_action')) {
         $check_result = fabb_batch_check_all_backlinks();
@@ -209,19 +194,16 @@ function fabb_render_settings_page() {
             echo '<div class="notice notice-success is-dismissible"><p>批量检测完成！共检测 ' . $check_result['total'] . ' 个友链，正常 ' . ($check_result['total'] - $check_result['invalid']) . ' 个，失效 ' . $check_result['invalid'] . ' 个</p></div>';
         }
     }
-
     // 原生链接同步
     if (isset($_POST['fabb_sync_links']) && wp_verify_nonce($_POST['fabb_sync_nonce'], 'fabb_sync_links_action')) {
         $sync_result = fabb_sync_bookmarks_to_apply();
         echo '<div class="notice notice-success is-dismissible"><p>同步完成！共同步 ' . $sync_result['total'] . ' 个链接，新增 ' . $sync_result['added'] . ' 个，已存在 ' . $sync_result['exists'] . ' 个</p></div>';
     }
-
     // 导出CSV
     if (isset($_POST['fabb_export_csv']) && wp_verify_nonce($_POST['fabb_export_nonce'], 'fabb_export_action')) {
         fabb_export_bookmarks_to_csv();
         exit;
     }
-
     // 导入CSV
     if (isset($_POST['fabb_import_csv']) && wp_verify_nonce($_POST['fabb_import_nonce'], 'fabb_import_action')) {
         $import_result = fabb_import_bookmarks_from_csv();
@@ -231,7 +213,6 @@ function fabb_render_settings_page() {
             echo '<div class="notice notice-success is-dismissible"><p>导入完成！共导入 ' . $import_result['total'] . ' 个链接，成功 ' . $import_result['success'] . ' 个，失败 ' . $import_result['failed'] . ' 个</p></div>';
         }
     }
-
     // 获取配置并补全默认值
     $settings = get_option('fabb_settings');
     $settings = wp_parse_args($settings, array(
@@ -277,7 +258,6 @@ function fabb_render_settings_page() {
     <div class="wrap">
         <h1>SEE~Friends 友链插件设置</h1>
         <hr>
-
         <!-- 新增：统计卡片 -->
         <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:20px;margin:20px 0;">
             <div style="background:#fff;padding:20px;border-radius:8px;box-shadow:0 1px 3px rgba(0,0,0,0.1);">
@@ -297,7 +277,6 @@ function fabb_render_settings_page() {
                 <p style="margin:0;font-size:32px;font-weight:bold;color:#777bb4;"><?php echo $total_links; ?></p>
             </div>
         </div>
-
         <h2 class="nav-tab-wrapper">
             <a href="#tab-base" class="nav-tab nav-tab-active">基础设置</a>
             <a href="#tab-check" class="nav-tab">反链检测设置</a>
@@ -306,10 +285,8 @@ function fabb_render_settings_page() {
             <a href="#tab-front" class="nav-tab">前端显示设置</a>
             <a href="#tab-data" class="nav-tab">数据管理</a>
         </h2>
-
         <form method="post" action="" enctype="multipart/form-data">
             <?php wp_nonce_field('fabb_save_settings', 'fabb_settings_nonce'); ?>
-
             <div id="tab-base" class="tab-content" style="margin-top:20px;">
                 <table class="form-table">
                     <tr>
@@ -328,7 +305,6 @@ function fabb_render_settings_page() {
                     </tr>
                 </table>
             </div>
-
             <div id="tab-check" class="tab-content" style="margin-top:20px;display:none;">
                 <table class="form-table">
                     <tr>
@@ -407,7 +383,6 @@ function fabb_render_settings_page() {
                     </tr>
                 </table>
             </div>
-
             <div id="tab-email" class="tab-content" style="margin-top:20px;display:none;">
                 <table class="form-table">
                     <tr>
@@ -447,7 +422,6 @@ function fabb_render_settings_page() {
                     </tr>
                 </table>
             </div>
-
             <!-- 新增：RSS设置选项卡 -->
             <div id="tab-rss" class="tab-content" style="margin-top:20px;display:none;">
                 <table class="form-table">
@@ -485,7 +459,6 @@ function fabb_render_settings_page() {
                     </tr>
                 </table>
             </div>
-
             <div id="tab-front" class="tab-content" style="margin-top:20px;display:none;">
                 <table class="form-table">
                     <tr>
@@ -580,7 +553,6 @@ function fabb_render_settings_page() {
                     </tr>
                 </table>
             </div>
-
             <!-- 新增：数据管理选项卡 -->
             <div id="tab-data" class="tab-content" style="margin-top:20px;display:none;">
                 <table class="form-table">
@@ -612,13 +584,11 @@ function fabb_render_settings_page() {
                     </tr>
                 </table>
             </div>
-
             <p class="submit">
                 <button type="submit" name="fabb_settings_save" class="button button-primary">保存设置</button>
             </p>
         </form>
     </div>
-
     <script>
     document.addEventListener('DOMContentLoaded', function() {
         const tabs = document.querySelectorAll('.nav-tab');
@@ -633,7 +603,6 @@ function fabb_render_settings_page() {
                 document.querySelector(this.getAttribute('href')).style.display = 'block';
             });
         });
-
         const sizeMin = document.getElementById('image_size_min');
         const sizeMax = document.getElementById('image_size_max');
         const defaultSize = document.getElementById('default_image_size');
@@ -655,7 +624,6 @@ function fabb_render_settings_page() {
     </script>
     <?php
 }
-
 // ====================== 4. CSV导入导出功能 ======================
 // 导出友链为CSV
 function fabb_export_bookmarks_to_csv() {
@@ -700,7 +668,6 @@ function fabb_export_bookmarks_to_csv() {
     fclose($output);
     exit;
 }
-
 // 从CSV导入友链
 function fabb_import_bookmarks_from_csv() {
     if (!isset($_FILES['fabb_csv_file']) || $_FILES['fabb_csv_file']['error'] !== UPLOAD_ERR_OK) {
@@ -804,10 +771,13 @@ function fabb_import_bookmarks_from_csv() {
     fclose($handle);
     return array('total' => $total, 'success' => $success, 'failed' => $failed);
 }
-
 // ====================== 5. RSS自动更新与文章订阅 ======================
 // 自动更新RSS文章缓存
 function fabb_rss_auto_update() {
+    if (!class_exists('SimplePie')) {
+        return;
+    }
+    
     $bookmarks = get_bookmarks(array('hide_invisible' => 1));
     
     foreach ($bookmarks as $bookmark) {
@@ -849,9 +819,7 @@ function fabb_rss_auto_update() {
         usleep(200000);
     }
 }
-
 add_action('fabb_rss_auto_update_hook', 'fabb_rss_auto_update');
-
 // RSS订阅文章短代码
 add_shortcode('friend_rss_posts', 'fabb_rss_posts_shortcode');
 function fabb_rss_posts_shortcode($atts) {
@@ -972,7 +940,6 @@ function fabb_rss_posts_shortcode($atts) {
     
     return $output;
 }
-
 // ====================== 6. 申请列表自定义列 ======================
 add_filter('manage_link_apply_posts_columns', 'fabb_add_apply_columns');
 function fabb_add_apply_columns($columns) {
@@ -987,7 +954,6 @@ function fabb_add_apply_columns($columns) {
     );
     return $new_columns;
 }
-
 add_action('manage_link_apply_posts_custom_column', 'fabb_render_apply_columns', 10, 2);
 function fabb_render_apply_columns($column, $post_id) {
     switch ($column) {
@@ -1027,11 +993,9 @@ function fabb_render_apply_columns($column, $post_id) {
             break;
     }
 }
-
 // ====================== 7. 智能反链检测核心函数 ======================
 function fabb_check_backlink($target_url) {
     if (empty($target_url)) return false;
-
     $site_host = parse_url(home_url(), PHP_URL_HOST);
     $site_host_clean = preg_replace('/^www\./', '', $site_host);
     $site_host_www = 'www.' . $site_host_clean;
@@ -1039,11 +1003,9 @@ function fabb_check_backlink($target_url) {
     $site_url_http = str_replace('https://', 'http://', $site_url_full);
     $site_url_https = str_replace('http://', 'https://', $site_url_full);
     $site_name = get_bloginfo('name');
-
     $keywords_str = fabb_get_setting('backlink_keywords', '友情链接,友链,友人帐,合作伙伴,推荐网站,友情,友站,友邻,小伙伴,站点推荐,博客邻居,友情互链,交换链接,friend,friends,friendly,link,links,flink,blogroll,partner,partners,exchange,site,sites,follow,following,community');
     $friend_link_keywords = array_map('trim', explode(',', $keywords_str));
     $friend_link_keywords = array_filter($friend_link_keywords);
-
     $request_args = [
         'timeout' => 15,
         'sslverify' => false,
@@ -1057,8 +1019,9 @@ function fabb_check_backlink($target_url) {
             'Upgrade-Insecure-Requests' => '1',
         ]
     ];
-
     $check_page_for_backlink = function($body) use ($site_host_clean, $site_host_www, $site_url_full, $site_url_http, $site_url_https, $site_name) {
+        if (empty($body)) return false;
+        
         $host_pattern = '/\b' . preg_quote($site_host_clean, '/') . '\b/i';
         if (
             preg_match($host_pattern, $body) ||
@@ -1070,23 +1033,20 @@ function fabb_check_backlink($target_url) {
         ) {
             return true;
         }
-
         preg_match('/<title[^>]*>(.*?)<\/title>/is', $body, $title_match);
         if (!empty($title_match[1]) && (stripos($title_match[1], $site_name) !== false || stripos($title_match[1], $site_host_clean) !== false)) {
             return true;
         }
-
         preg_match('/<meta[^>]*name=["\']description["\'][^>]*content=["\']([^"\']*)["\'][^>]*>/is', $body, $meta_match);
         if (!empty($meta_match[1]) && (stripos($meta_match[1], $site_name) !== false || stripos($meta_match[1], $site_host_clean) !== false)) {
             return true;
         }
-
         if (fabb_get_setting('check_image_links', 'on') === 'on') {
             preg_match_all('/<img\s+[^>]*src=["\']([^"\']+)["\'][^>]*alt=["\']([^"\']*)["\'][^>]*title=["\']([^"\']*)["\'][^>]*>/is', $body, $img_matches);
             if (!empty($img_matches[1])) {
                 foreach ($img_matches[1] as $index => $img_src) {
-                    $img_alt = $img_matches[2][$index];
-                    $img_title = $img_matches[3][$index];
+                    $img_alt = isset($img_matches[2][$index]) ? $img_matches[2][$index] : '';
+                    $img_title = isset($img_matches[3][$index]) ? $img_matches[3][$index] : '';
                     
                     if (
                         preg_match($host_pattern, $img_src) ||
@@ -1111,10 +1071,8 @@ function fabb_check_backlink($target_url) {
                 }
             }
         }
-
         return false;
     };
-
     $safe_remote_get = function($url, $args) {
         $response = wp_remote_get($url, $args);
         if (is_wp_error($response)) {
@@ -1123,16 +1081,13 @@ function fabb_check_backlink($target_url) {
         }
         return $response;
     };
-
     $response = $safe_remote_get($target_url, $request_args);
     if (is_wp_error($response)) return false;
     $body = wp_remote_retrieve_body($response);
     if (empty($body)) return false;
-
     if ($check_page_for_backlink($body)) {
         return true;
     }
-
     $base_url = trailingslashit($target_url);
     $candidate_links = [];
     $all_links = [];
@@ -1151,20 +1106,16 @@ function fabb_check_backlink($target_url) {
                 strpos($href, '#') === 0 ||
                 strpos($href, '?') === 0
             ) continue;
-
             if (strpos($href, 'http') !== 0) {
                 $href = $base_url . ltrim($href, '/');
             }
-
             $link_host = parse_url($href, PHP_URL_HOST);
             $target_host = parse_url($target_url, PHP_URL_HOST);
             if (empty($link_host) || empty($target_host)) continue;
             if (preg_replace('/^www\./', '', $link_host) !== preg_replace('/^www\./', '', $target_host)) continue;
-
             $href_normalized = trailingslashit(strtolower($href));
             if (in_array($href_normalized, $all_links)) continue;
             $all_links[] = $href_normalized;
-
             $has_keyword_in_url = false;
             foreach ($friend_link_keywords as $kw) {
                 if (stripos($href, $kw) !== false) {
@@ -1181,13 +1132,11 @@ function fabb_check_backlink($target_url) {
                     }
                 }
             }
-
             if ($has_keyword_in_url || $has_keyword_in_text) {
                 $candidate_links[] = $href;
             }
         }
     }
-
     if (fabb_get_setting('auto_check_common_paths', 'on') === 'on') {
         $common_paths = ['friend', 'link', 'links', 'friends', 'blogroll', 'flink', 'partner', 'partners', 'site', 'sites'];
         foreach ($common_paths as $path) {
@@ -1199,7 +1148,6 @@ function fabb_check_backlink($target_url) {
             }
         }
     }
-
     if (!empty($candidate_links)) {
         $candidate_links = array_slice($candidate_links, 0, 10);
         foreach ($candidate_links as $flink_url) {
@@ -1208,16 +1156,13 @@ function fabb_check_backlink($target_url) {
             if (is_wp_error($flink_response)) continue;
             $flink_body = wp_remote_retrieve_body($flink_response);
             if (empty($flink_body)) continue;
-
             if ($check_page_for_backlink($flink_body)) {
                 return true;
             }
         }
     }
-
     return false;
 }
-
 // 批量检测所有已上线友链
 function fabb_batch_check_all_backlinks() {
     @set_time_limit(0);
@@ -1230,40 +1175,31 @@ function fabb_batch_check_all_backlinks() {
         'numberposts' => -1,
         'fields' => 'ids',
     ));
-
     $total = count($approved_posts);
     $invalid = 0;
-
     foreach ($approved_posts as $post_id) {
         $link_url = get_post_meta($post_id, '_fabb_link_url', true);
         if (empty($link_url)) continue;
-
         try {
             $has_backlink = fabb_check_backlink($link_url);
         } catch (Exception $e) {
             $has_backlink = false;
         }
-
         update_post_meta($post_id, '_fabb_backlink_status', $has_backlink ? 'has' : 'no');
         update_post_meta($post_id, '_fabb_backlink_check_time', time());
-
         if (!$has_backlink) {
             $invalid++;
         }
-
         usleep(200000);
     }
-
     return array('total' => $total, 'invalid' => $invalid);
 }
-
 // 同步原生链接到插件
 function fabb_sync_bookmarks_to_apply() {
     $bookmarks = get_bookmarks(array('hide_invisible' => 0));
     $total = count($bookmarks);
     $added = 0;
     $exists = 0;
-
     foreach ($bookmarks as $bookmark) {
         $existing = get_posts(array(
             'post_type' => 'link_apply',
@@ -1271,19 +1207,16 @@ function fabb_sync_bookmarks_to_apply() {
             'meta_value' => $bookmark->link_id,
             'numberposts' => 1,
         ));
-
         if (!empty($existing)) {
             $exists++;
             continue;
         }
-
         $post_data = array(
             'post_title' => $bookmark->link_name,
             'post_content' => $bookmark->link_description,
             'post_type' => 'link_apply',
             'post_status' => 'publish',
         );
-
         $post_id = wp_insert_post($post_data);
         if (!is_wp_error($post_id)) {
             update_post_meta($post_id, '_fabb_link_id', $bookmark->link_id);
@@ -1294,19 +1227,15 @@ function fabb_sync_bookmarks_to_apply() {
             $added++;
         }
     }
-
     return array('total' => $total, 'added' => $added, 'exists' => $exists);
 }
-
 // ====================== 8. 自动通过新申请功能 ======================
 function fabb_auto_approve_applications() {
     if (fabb_get_setting('auto_approve_enable', 'off') !== 'on') {
         return;
     }
-
     $auto_approve_days = fabb_get_setting('auto_approve_days', 7);
     $cutoff_time = time() - ($auto_approve_days * 86400);
-
     $pending_applications = get_posts(array(
         'post_type' => 'link_apply',
         'post_status' => 'publish',
@@ -1326,24 +1255,19 @@ function fabb_auto_approve_applications() {
         'numberposts' => -1,
         'fields' => 'ids',
     ));
-
     if (empty($pending_applications)) {
         return;
     }
-
     $email_approved = fabb_get_setting('email_approved_notice', 'on') === 'on';
     $approved_count = 0;
-
     foreach ($pending_applications as $post_id) {
         $link_url = get_post_meta($post_id, '_fabb_link_url', true);
         if (empty($link_url)) continue;
-
         try {
             $has_backlink = fabb_check_backlink($link_url);
         } catch (Exception $e) {
             $has_backlink = false;
         }
-
         if ($has_backlink) {
             update_post_meta($post_id, '_fabb_apply_status', 'approved');
             
@@ -1356,7 +1280,6 @@ function fabb_auto_approve_applications() {
                 'link_target' => '_blank',
                 'link_visible' => 'Y',
             );
-
             if (empty($link_id)) {
                 $link_id = wp_insert_link($link_data);
                 if ($link_id) {
@@ -1366,21 +1289,17 @@ function fabb_auto_approve_applications() {
                 $link_data['link_id'] = $link_id;
                 wp_update_link($link_data);
             }
-
             $contact_email = get_post_meta($post_id, '_fabb_apply_email', true);
             if ($email_approved && !empty($contact_email)) {
                 $subject = '您的友情链接申请已自动通过';
                 $message = '您好，您在 ' . get_bloginfo('name') . ' 提交的友情链接申请已通过自动审核，链接已正式上线。';
                 wp_mail($contact_email, $subject, $message);
             }
-
             $approved_count++;
         }
-
         unset($has_backlink, $link_url);
         usleep(200000);
     }
-
     if ($approved_count > 0) {
         $admin_email = fabb_get_setting('alert_email', get_option('admin_email'));
         if (!empty($admin_email)) {
@@ -1390,50 +1309,38 @@ function fabb_auto_approve_applications() {
         }
     }
 }
-
 add_action('fabb_auto_approve_applications_hook', 'fabb_auto_approve_applications');
-
 // ====================== 9. 自动反链检测定时任务 ======================
 function fabb_auto_check_backlinks() {
     fabb_batch_check_all_backlinks();
 }
-
 add_action('fabb_auto_check_backlink_hook', 'fabb_auto_check_backlinks');
-
 // ====================== 10. 列表行操作按钮 ======================
 add_filter('post_row_actions', 'fabb_add_apply_row_actions', 10, 2);
 function fabb_add_apply_row_actions($actions, $post) {
     if ($post->post_type !== 'link_apply') return $actions;
-
     $current_status = isset($_GET['post_status']) ? sanitize_text_field($_GET['post_status']) : 'all';
     $status_param = $current_status !== 'all' ? '&post_status=' . $current_status : '';
-
     $status = get_post_meta($post->ID, '_fabb_apply_status', true) ?: 'pending';
     $new_actions = array();
-
     if ($status !== 'approved') {
         $approve_url = wp_nonce_url(admin_url('edit.php?post_type=link_apply&action=approve&post=' . $post->ID . $status_param), 'fabb_approve_apply_' . $post->ID);
         $new_actions['approve'] = '<a href="' . esc_url($approve_url) . '" style="color:#00b42a;font-weight:bold;margin-right:8px;" onclick="return confirm(\'确定要通过这个友链申请吗？\n通过后将自动同步到链接管理器并上线\')">通过</a>';
     }
-
     if ($status !== 'rejected') {
         $reject_url = wp_nonce_url(admin_url('edit.php?post_type=link_apply&action=reject&post=' . $post->ID . $status_param), 'fabb_reject_apply_' . $post->ID);
         $new_actions['reject'] = '<a href="' . esc_url($reject_url) . '" style="color:#d63638;font-weight:bold;margin-right:8px;" onclick="return confirm(\'确定要拒绝这个友链申请吗？\n拒绝后将自动移除已上线的链接\')">拒绝</a>';
     }
-
     $check_url = wp_nonce_url(admin_url('edit.php?post_type=link_apply&action=check_backlink&post=' . $post->ID . $status_param), 'fabb_check_backlink_' . $post->ID);
     $new_actions['check_backlink'] = '<a href="' . esc_url($check_url) . '" style="margin-right:8px;">检测反链</a>';
-
     $new_actions['edit'] = $actions['edit'];
     if (isset($actions['trash'])) {
         $trash_url = $actions['trash'];
         $trash_url = str_replace('href=', 'onclick="return confirm(\'确定要将这个申请移到回收站吗？\')" href=', $trash_url);
         $new_actions['trash'] = $trash_url;
     }
-
     return $new_actions;
 }
-
 // ====================== 11. 后台操作处理 ======================
 add_action('admin_init', 'fabb_handle_admin_actions');
 function fabb_handle_admin_actions() {
@@ -1441,19 +1348,15 @@ function fabb_handle_admin_actions() {
     if ($pagenow !== 'edit.php' || !isset($_GET['post_type']) || $_GET['post_type'] !== 'link_apply' || !isset($_GET['action']) || !isset($_GET['post'])) {
         return;
     }
-
     $post_id = absint($_GET['post']);
     $action = sanitize_text_field($_GET['action']);
     $allowed_actions = array('approve', 'reject', 'check_backlink');
-
     if (!in_array($action, $allowed_actions)) {
         return;
     }
-
     if (!current_user_can('manage_links', $post_id)) {
         wp_die('您没有权限执行此操作');
     }
-
     $nonce_name = 'fabb_' . $action . '_apply_' . $post_id;
     if ($action === 'check_backlink') {
         $nonce_name = 'fabb_check_backlink_' . $post_id;
@@ -1461,13 +1364,10 @@ function fabb_handle_admin_actions() {
     if (!isset($_GET['_wpnonce']) || !wp_verify_nonce($_GET['_wpnonce'], $nonce_name)) {
         wp_die('安全验证失败，请刷新重试');
     }
-
     $current_status = isset($_GET['post_status']) ? sanitize_text_field($_GET['post_status']) : 'all';
     $status_param = $current_status !== 'all' ? '&post_status=' . $current_status : '';
-
     $email_approved = fabb_get_setting('email_approved_notice', 'on') === 'on';
     $email_rejected = fabb_get_setting('email_rejected_notice', 'on') === 'on';
-
     switch ($action) {
         case 'approve':
             update_post_meta($post_id, '_fabb_apply_status', 'approved');
@@ -1481,7 +1381,6 @@ function fabb_handle_admin_actions() {
                 'link_target' => '_blank',
                 'link_visible' => 'Y',
             );
-
             if (empty($link_id)) {
                 $link_id = wp_insert_link($link_data);
                 if ($link_id) update_post_meta($post_id, '_fabb_link_id', $link_id);
@@ -1489,18 +1388,15 @@ function fabb_handle_admin_actions() {
                 $link_data['link_id'] = $link_id;
                 wp_update_link($link_data);
             }
-
             $contact_email = get_post_meta($post_id, '_fabb_apply_email', true);
             if ($email_approved && !empty($contact_email)) {
                 $subject = '您的友情链接申请已通过';
                 $message = '您好，您在 ' . get_bloginfo('name') . ' 提交的友情链接申请已通过审核，链接已正式上线。';
                 wp_mail($contact_email, $subject, $message);
             }
-
             wp_redirect(admin_url('edit.php?post_type=link_apply&approved=1' . $status_param));
             exit;
             break;
-
         case 'reject':
             update_post_meta($post_id, '_fabb_apply_status', 'rejected');
             
@@ -1509,30 +1405,25 @@ function fabb_handle_admin_actions() {
                 wp_delete_link($link_id);
                 delete_post_meta($post_id, '_fabb_link_id');
             }
-
             $contact_email = get_post_meta($post_id, '_fabb_apply_email', true);
             if ($email_rejected && !empty($contact_email)) {
                 $subject = '您的友情链接申请未通过审核';
                 $message = '您好，您在 ' . get_bloginfo('name') . ' 提交的友情链接申请未通过审核，如有疑问可联系站长。';
                 wp_mail($contact_email, $subject, $message);
             }
-
             wp_redirect(admin_url('edit.php?post_type=link_apply&rejected=1' . $status_param));
             exit;
             break;
-
         case 'check_backlink':
             $target_url = get_post_meta($post_id, '_fabb_link_url', true);
             $has_backlink = fabb_check_backlink($target_url);
             update_post_meta($post_id, '_fabb_backlink_status', $has_backlink ? 'has' : 'no');
             update_post_meta($post_id, '_fabb_backlink_check_time', time());
-
             wp_redirect(admin_url('edit.php?post_type=link_apply&checked=1' . $status_param));
             exit;
             break;
     }
 }
-
 // 操作成功提示
 add_action('admin_notices', 'fabb_admin_notices');
 function fabb_admin_notices() {
@@ -1551,14 +1442,12 @@ function fabb_admin_notices() {
         echo '<div class="notice notice-success is-dismissible"><p>友链信息已修改，等待管理员审核</p></div>';
     }
 }
-
 // ====================== 12. 前端申请表单短代码 ======================
 add_shortcode('link_apply_form', 'fabb_render_apply_form_shortcode');
 function fabb_render_apply_form_shortcode() {
     if (fabb_get_setting('apply_form_enable', 'on') !== 'on') {
         return '<div class="fabb-form-notice" style="padding:15px;background:#f5f5f5;border-radius:8px;color:#666;">友情链接申请通道已关闭</div>';
     }
-
     $output = '';
     if (isset($_GET['apply_success']) && $_GET['apply_success'] === '1') {
         $output .= '<div class="fabb-form-success" style="padding:15px;background:#f0fff4;border:1px solid #00b42a;border-radius:8px;color:#00b42a;margin-bottom:20px;">✅ 您的申请已提交成功，我们会尽快审核</div>';
@@ -1567,7 +1456,6 @@ function fabb_render_apply_form_shortcode() {
         $error_msg = sanitize_text_field(urldecode($_GET['apply_error']));
         $output .= '<div class="fabb-form-error" style="padding:15px;background:#fef0f0;border:1px solid #d63638;border-radius:8px;color:#d63638;margin-bottom:20px;">❌ ' . esc_html($error_msg) . '</div>';
     }
-
     $output .= '<form class="fabb-apply-form" method="post" action="' . esc_url(admin_url('admin-post.php')) . '" style="max-width:800px;margin:0 auto;">';
     $output .= wp_nonce_field('fabb_apply_form_nonce', 'fabb_apply_form_nonce_field', true, false);
     $output .= '<input type="hidden" name="action" value="link_apply_submit">';
@@ -1608,7 +1496,6 @@ function fabb_render_apply_form_shortcode() {
     </div>
     ';
     $output .= '</form>';
-
     $output .= '
     <script type="text/javascript">
     document.addEventListener("DOMContentLoaded", function() {
@@ -1629,7 +1516,6 @@ function fabb_render_apply_form_shortcode() {
     ';
     return $output;
 }
-
 // 处理前端表单提交
 add_action('admin_post_nopriv_link_apply_submit', 'fabb_handle_frontend_apply_submit');
 add_action('admin_post_link_apply_submit', 'fabb_handle_frontend_apply_submit');
@@ -1639,14 +1525,12 @@ function fabb_handle_frontend_apply_submit() {
         wp_redirect($redirect_url);
         exit;
     }
-
     $site_name = sanitize_text_field($_POST['fabb_site_name']);
     $site_url = sanitize_url($_POST['fabb_site_url']);
     $site_image = sanitize_url($_POST['fabb_site_image']);
     $site_rss = sanitize_url($_POST['fabb_site_rss']);
     $site_desc = sanitize_textarea_field($_POST['fabb_site_desc']);
     $contact_email = sanitize_email($_POST['fabb_contact_email']);
-
     if (empty($site_name) || empty($site_url) || empty($site_desc) || empty($contact_email)) {
         $redirect_url = add_query_arg('apply_error', urlencode('请填写所有必填项'), wp_get_referer());
         wp_redirect($redirect_url);
@@ -1662,7 +1546,6 @@ function fabb_handle_frontend_apply_submit() {
         wp_redirect($redirect_url);
         exit;
     }
-
     $existing_posts = get_posts(array(
         'post_type' => 'link_apply',
         'meta_key' => '_fabb_link_url',
@@ -1675,7 +1558,6 @@ function fabb_handle_frontend_apply_submit() {
         wp_redirect($redirect_url);
         exit;
     }
-
     $post_data = array(
         'post_title' => $site_name,
         'post_content' => $site_desc,
@@ -1688,13 +1570,11 @@ function fabb_handle_frontend_apply_submit() {
         wp_redirect($redirect_url);
         exit;
     }
-
     update_post_meta($post_id, '_fabb_link_url', $site_url);
     update_post_meta($post_id, '_fabb_link_image', $site_image);
     update_post_meta($post_id, '_fabb_link_rss', $site_rss);
     update_post_meta($post_id, '_fabb_apply_status', 'pending');
     update_post_meta($post_id, '_fabb_apply_email', $contact_email);
-
     $email_admin = fabb_get_setting('email_admin_notice', 'on') === 'on';
     $admin_email = fabb_get_setting('alert_email', get_option('admin_email'));
     if ($email_admin && !empty($admin_email)) {
@@ -1708,22 +1588,18 @@ function fabb_handle_frontend_apply_submit() {
         $message .= '审核地址：' . admin_url('edit.php?post_type=link_apply');
         wp_mail($admin_email, $subject, $message);
     }
-
     $redirect_url = add_query_arg('apply_success', '1', wp_get_referer());
     wp_redirect($redirect_url);
     exit;
 }
-
 // ====================== 13. 前端自助修改表单（邮件验证码验证） ======================
 add_shortcode('link_modify_form', 'fabb_render_modify_form_shortcode');
 function fabb_render_modify_form_shortcode() {
     if (fabb_get_setting('modify_form_enable', 'on') !== 'on') {
         return '<div class="fabb-form-notice" style="padding:15px;background:#f5f5f5;border-radius:8px;color:#666;">友情链接自助修改通道已关闭</div>';
     }
-
     $email_verify = fabb_get_setting('modify_email_verify', 'on') === 'on';
     $output = '';
-
     if (isset($_GET['modify_success']) && $_GET['modify_success'] === '1') {
         $output .= '<div class="fabb-form-success" style="padding:15px;background:#f0fff4;border:1px solid #00b42a;border-radius:8px;color:#00b42a;margin-bottom:20px;">✅ 您的修改申请已提交成功，我们会尽快审核</div>';
     }
@@ -1734,7 +1610,6 @@ function fabb_render_modify_form_shortcode() {
     if (isset($_GET['code_sent']) && $_GET['code_sent'] === '1') {
         $output .= '<div class="fabb-form-success" style="padding:15px;background:#f0fff4;border:1px solid #00b42a;border-radius:8px;color:#00b42a;margin-bottom:20px;">✅ 验证码已发送至您的邮箱，5分钟内有效</div>';
     }
-
     $output .= '<form class="fabb-modify-form" method="post" action="' . esc_url(admin_url('admin-post.php')) . '" style="max-width:800px;margin:0 auto;">';
     $output .= wp_nonce_field('fabb_modify_form_nonce', 'fabb_modify_form_nonce_field', true, false);
     $output .= '<input type="hidden" name="action" value="link_modify_submit">';
@@ -1755,7 +1630,6 @@ function fabb_render_modify_form_shortcode() {
         </div>
     </div>
     ';
-
     if ($email_verify) {
         $output .= '
         <div class="fabb-form-group" style="margin-bottom:20px;">
@@ -1764,7 +1638,6 @@ function fabb_render_modify_form_shortcode() {
         </div>
         ';
     }
-
     $output .= '
     <hr style="margin:30px 0;border:none;border-top:1px solid #eee;">
     <div class="fabb-form-group" style="margin-bottom:20px;">
@@ -1795,14 +1668,12 @@ function fabb_render_modify_form_shortcode() {
     </div>
     ';
     $output .= '</form>';
-
     if ($email_verify) {
         $output .= '
         <script type="text/javascript">
         document.addEventListener("DOMContentLoaded", function() {
             const sendCodeBtn = document.getElementById("fabb_send_code_btn");
             let countdown = 0;
-
             sendCodeBtn.addEventListener("click", function() {
                 if (countdown > 0) return;
                 
@@ -1817,7 +1688,6 @@ function fabb_render_modify_form_shortcode() {
                     alert("请先输入网站链接地址");
                     return;
                 }
-
                 fetch("' . esc_url(admin_url('admin-post.php')) . '", {
                     method: "POST",
                     headers: {
@@ -1843,11 +1713,9 @@ function fabb_render_modify_form_shortcode() {
                     }
                 });
             });
-
             function isValidEmail(email) {
                 return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
             }
-
             const newImageInput = document.getElementById("fabb_new_image");
             const newPreviewWrap = document.getElementById("fabb_new_image_preview");
             const newPreviewImg = document.getElementById("fabb_new_preview_img");
@@ -1883,10 +1751,8 @@ function fabb_render_modify_form_shortcode() {
         </script>
         ';
     }
-
     return $output;
 }
-
 // 发送修改验证码
 add_action('admin_post_nopriv_fabb_send_verify_code', 'fabb_send_modify_verify_code');
 add_action('admin_post_fabb_send_verify_code', 'fabb_send_modify_verify_code');
@@ -1895,15 +1761,12 @@ function fabb_send_modify_verify_code() {
         echo 'error';
         exit;
     }
-
     $email = sanitize_email($_POST['email']);
     $url = sanitize_url($_POST['url']);
-
     if (!is_email($email) || !wp_http_validate_url($url)) {
         echo 'error';
         exit;
     }
-
     // 验证是否存在对应的友链记录
     $existing_posts = get_posts(array(
         'post_type' => 'link_apply',
@@ -1915,26 +1778,21 @@ function fabb_send_modify_verify_code() {
         ),
         'numberposts' => 1,
     ));
-
     if (empty($existing_posts)) {
         echo 'error';
         exit;
     }
-
     // 生成6位数字验证码
     $code = str_pad(rand(0, 999999), 6, '0', STR_PAD_LEFT);
     $expire_time = time() + 300; // 5分钟有效
-
     // 存储验证码到临时缓存
     $transient_key = 'fabb_modify_code_' . md5($email . $url);
     set_transient($transient_key, $code, 300);
-
     // 发送邮件
     $subject = '友链修改验证码';
     $message = '您好，您正在申请修改 ' . get_bloginfo('name') . ' 的友情链接信息。' . "\r\n";
     $message .= '您的验证码是：' . $code . "\r\n";
     $message .= '验证码5分钟内有效，请勿泄露给他人。';
-
     if (wp_mail($email, $subject, $message)) {
         echo 'success';
     } else {
@@ -1942,7 +1800,6 @@ function fabb_send_modify_verify_code() {
     }
     exit;
 }
-
 // 处理前端修改表单提交
 add_action('admin_post_nopriv_link_modify_submit', 'fabb_handle_frontend_modify_submit');
 add_action('admin_post_link_modify_submit', 'fabb_handle_frontend_modify_submit');
@@ -1952,7 +1809,6 @@ function fabb_handle_frontend_modify_submit() {
         wp_redirect($redirect_url);
         exit;
     }
-
     $verify_url = sanitize_url($_POST['fabb_verify_url']);
     $verify_email = sanitize_email($_POST['fabb_verify_email']);
     
@@ -1971,7 +1827,6 @@ function fabb_handle_frontend_modify_submit() {
         wp_redirect($redirect_url);
         exit;
     }
-
     // 验证邮箱验证码
     if (fabb_get_setting('modify_email_verify', 'on') === 'on') {
         $verify_code = sanitize_text_field($_POST['fabb_verify_code']);
@@ -1980,7 +1835,6 @@ function fabb_handle_frontend_modify_submit() {
             wp_redirect($redirect_url);
             exit;
         }
-
         $transient_key = 'fabb_modify_code_' . md5($verify_email . $verify_url);
         $saved_code = get_transient($transient_key);
         if (!$saved_code || $saved_code !== $verify_code) {
@@ -1988,11 +1842,9 @@ function fabb_handle_frontend_modify_submit() {
             wp_redirect($redirect_url);
             exit;
         }
-
         // 验证成功后删除验证码
         delete_transient($transient_key);
     }
-
     // 查找对应的申请记录
     $existing_posts = get_posts(array(
         'post_type' => 'link_apply',
@@ -2019,7 +1871,6 @@ function fabb_handle_frontend_modify_submit() {
         wp_redirect($redirect_url);
         exit;
     }
-
     // 获取修改信息
     $new_name = sanitize_text_field($_POST['fabb_new_name']);
     $new_url = sanitize_url($_POST['fabb_new_url']);
@@ -2066,7 +1917,6 @@ function fabb_handle_frontend_modify_submit() {
     wp_redirect($redirect_url);
     exit;
 }
-
 // ====================== 14. 随机友情链接短代码（右上角RSS+多行描述） ======================
 add_shortcode('random_bookmarks', 'fabb_random_bookmarks_shortcode');
 function fabb_random_bookmarks_shortcode($atts) {
@@ -2076,7 +1926,6 @@ function fabb_random_bookmarks_shortcode($atts) {
     $show_rss_feed = fabb_get_setting('show_rss_feed', 'on') === 'on';
     $default_target = fabb_get_setting('open_new_window', 'on') === 'on' ? '_blank' : '_self';
     $desc_multi_line = fabb_get_setting('desc_multi_line', 'on') === 'on';
-
     $atts = shortcode_atts(array(
         'category'         => '',
         'limit'            => fabb_get_setting('default_show_num', 20),
@@ -2086,12 +1935,10 @@ function fabb_random_bookmarks_shortcode($atts) {
         'image_size'       => $default_image_size,
         'show_rss'         => $show_rss_feed,
     ), $atts, 'random_bookmarks');
-
     $show_image = (trim(strtolower($atts['show_image'])) === 'true' || $atts['show_image'] === true || $atts['show_image'] === 'on');
     $show_description = (trim(strtolower($atts['show_description'])) === 'true' || $atts['show_description'] === true || $atts['show_description'] === 'on');
     $show_rss = (trim(strtolower($atts['show_rss'])) === 'true' || $atts['show_rss'] === true || $atts['show_rss'] === 'on');
     $image_size = absint($atts['image_size']);
-
     $bookmark_args = array(
         'orderby'        => 'rand',
         'order'          => 'ASC',
@@ -2100,11 +1947,9 @@ function fabb_random_bookmarks_shortcode($atts) {
         'hide_invisible' => 1,
     );
     $bookmarks = get_bookmarks($bookmark_args);
-
     if (empty($bookmarks)) {
         return '<p class="fabb-bookmarks-empty">暂无友情链接</p>';
     }
-
     $output = '<ul class="fabb-bookmarks-list">';
     foreach ($bookmarks as $bookmark) {
         $link_url    = esc_url($bookmark->link_url);
@@ -2127,7 +1972,6 @@ function fabb_random_bookmarks_shortcode($atts) {
                 $link_rss = get_post_meta($apply_posts[0]->ID, '_fabb_link_rss', true);
             }
         }
-
         // 修改：卡片结构调整为右上角RSS
         $output .= '<li class="fabb-bookmark-item">';
         $output .= '<div class="fabb-bookmark-card" style="position:relative;width:100%;">';
@@ -2142,14 +1986,12 @@ function fabb_random_bookmarks_shortcode($atts) {
                 </svg>
             </a>';
         }
-
         $output .= '<a href="' . $link_url . '" target="' . $link_target . '" title="' . $link_title . '" rel="noopener noreferrer" style="display:block;text-decoration:none;">';
         
         if ($show_image) {
             $img_src = !empty($link_image) ? $link_image : $default_image;
             $output .= '<img src="' . $img_src . '" class="fabb-bookmark-image" style="width:' . $image_size . 'px;height:' . $image_size . 'px;border-radius:6px;flex-shrink:0;" alt="' . $link_name . '">';
         }
-
         $output .= '<div class="fabb-bookmark-content">';
         $output .= '<span class="fabb-bookmark-name">' . $link_name . '</span>';
         
@@ -2162,10 +2004,8 @@ function fabb_random_bookmarks_shortcode($atts) {
         $output .= '</li>';
     }
     $output .= '</ul>';
-
     return $output;
 }
-
 // ====================== 15. CSS样式（新增多行描述+右上角RSS） ======================
 add_action('wp_enqueue_scripts', 'fabb_enqueue_bookmarks_styles');
 function fabb_enqueue_bookmarks_styles() {
@@ -2318,7 +2158,6 @@ function fabb_enqueue_bookmarks_styles() {
     ';
     wp_add_inline_style('wp-block-library', $css);
 }
-
 // ====================== 16. 删除申请时同步删除链接 ======================
 add_action('before_delete_post', 'fabb_before_delete_apply_cleanup', 10, 1);
 function fabb_before_delete_apply_cleanup($post_id) {
@@ -2330,7 +2169,6 @@ function fabb_before_delete_apply_cleanup($post_id) {
         wp_delete_link($link_id);
     }
 }
-
 // ====================== 17. 自动清理过期申请定时任务 ======================
 add_action('fabb_cleanup_expired_applications_hook', 'fabb_cleanup_expired_applications');
 function fabb_cleanup_expired_applications() {
@@ -2368,19 +2206,16 @@ function fabb_cleanup_expired_applications() {
         wp_delete_post($post_id, true);
     }
 }
-
 // ====================== 18. 插件激活/停用处理 ======================
 register_activation_hook(__FILE__, 'fabb_plugin_activation');
 function fabb_plugin_activation() {
     fabb_register_apply_post_type();
     flush_rewrite_rules();
     fabb_plugin_init_default_settings();
-
     // 注册过期清理定时任务
     if (!wp_next_scheduled('fabb_cleanup_expired_applications_hook')) {
         wp_schedule_event(time(), 'daily', 'fabb_cleanup_expired_applications_hook');
     }
-
     // 注册反链检测定时任务
     if (fabb_get_setting('auto_check_backlink', 'on') === 'on') {
         $frequency = fabb_get_setting('check_frequency', 'daily');
@@ -2388,12 +2223,10 @@ function fabb_plugin_activation() {
             wp_schedule_event(time(), $frequency, 'fabb_auto_check_backlink_hook');
         }
     }
-
     // 注册自动通过定时任务
     if (!wp_next_scheduled('fabb_auto_approve_applications_hook')) {
         wp_schedule_event(strtotime('tomorrow 02:00'), 'daily', 'fabb_auto_approve_applications_hook');
     }
-
     // 注册RSS自动更新定时任务
     if (fabb_get_setting('rss_auto_update', 'on') === 'on') {
         $frequency = fabb_get_setting('rss_update_frequency', 'daily');
@@ -2402,7 +2235,6 @@ function fabb_plugin_activation() {
         }
     }
 }
-
 register_deactivation_hook(__FILE__, 'fabb_plugin_deactivation');
 function fabb_plugin_deactivation() {
     flush_rewrite_rules();

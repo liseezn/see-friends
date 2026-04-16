@@ -187,7 +187,7 @@
 - 完整邮件通知链路
 - 优化前端卡片样式
 
-完整更新日志：[GitHub Releases](sslocal://flow/file_open?url=https%3A%2F%2Fgithub.com%2Fliseezn%2Fsee-friends%2Freleases&flow_extra=eyJsaW5rX3R5cGUiOiJjb2RlX2ludGVycHJldGVyIn0=)
+完整更新日志：[GitHub Releases](https://github.com/liseezn/see-friends/releases)
 
 ---
 

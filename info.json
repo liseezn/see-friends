@@ -13,5 +13,5 @@
     "banner_low": "https://raw.githubusercontent.com/liseezn/see-friends/main/assets/banner-772x250.png",
     "banner_high": "https://raw.githubusercontent.com/liseezn/see-friends/main/assets/banner-1544x500.png",
     "sha256": "插件zip包的SHA256哈希值",
-    "force_update": "3.3.0" // 低于此版本的用户将被强制更新
+    "force_update": "3.2.0" 
 }

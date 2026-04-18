@@ -1,0 +1,17 @@
+{
+    "name": "SEE~Friends 友情链接管理",
+    "version": "3.3.3",
+    "author": "liseezn",
+    "author_url": "https://liseezn.top",
+    "homepage": "https://github.com/liseezn/see-friends",
+    "tested_up_to": "6.5",
+    "requires_wp": "6.0",
+    "requires_php": "7.4",
+    "description": "WordPress友情链接管理插件，支持前端申请、后台审核、智能反链检测、定时监控、邮件提醒、自助修改、RSS展示",
+    "changelog": "<h4>版本3.3.3</h4><ul><li>新增多源自动更新系统</li><li>新增强制安全更新功能</li><li>新增文件完整性校验</li><li>修复了一些已知问题</li></ul>",
+    "installation": "<p>1. 下载插件zip包<br>2. 在WordPress后台上传安装<br>3. 激活插件即可使用</p>",
+    "banner_low": "https://raw.githubusercontent.com/liseezn/see-friends/main/assets/banner-772x250.png",
+    "banner_high": "https://raw.githubusercontent.com/liseezn/see-friends/main/assets/banner-1544x500.png",
+    "sha256": "插件zip包的SHA256哈希值",
+    "force_update": "3.3.0" // 低于此版本的用户将被强制更新
+}

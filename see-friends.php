@@ -3,7 +3,7 @@
 Plugin Name: See~Friends 友情链接管理
 Plugin URI: https://github.com/liseezn/see-friends
 Description: WordPress友情链接管理插件，支持前端申请、后台审核、智能反链检测、定时监控、邮件提醒、自助修改、RSS展示
-Version: 3.3.2
+Version: 3.4.0
 Author: liseezn
 Author URI: https://liseezn.top
 License: GPLv3

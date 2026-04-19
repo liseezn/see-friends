@@ -1,17 +1,17 @@
 {
     "name": "SEE~Friends 友情链接管理",
-    "version": "3.3.3",
+    "version": "3.4.0",
     "author": "liseezn",
     "author_url": "https://liseezn.top",
     "homepage": "https://github.com/liseezn/see-friends",
-    "tested_up_to": "6.5",
-    "requires_wp": "6.0",
+    "tested_up_to": "6.7",
+    "requires_wp": "5.6",
     "requires_php": "7.4",
-    "description": "WordPress友情链接管理插件，支持前端申请、后台审核、智能反链检测、定时监控、邮件提醒、自助修改、RSS展示",
-    "changelog": "<h4>版本3.3.3</h4><ul><li>新增多源自动更新系统</li><li>新增强制安全更新功能</li><li>新增文件完整性校验</li><li>修复了一些已知问题</li></ul>",
-    "installation": "<p>1. 下载插件zip包<br>2. 在WordPress后台上传安装<br>3. 激活插件即可使用</p>",
+    "description": "WordPress轻量开源友情链接管理插件，支持前端自助申请、后台一键审核、智能反链检测、定时监控、邮件通知、用户自助修改、RSS文章聚合、数据导入导出、分类筛选展示，隐私合规无广告",
+    "changelog": "<h4>版本 3.4.0</h4><h5>🎉 新增功能</h5><ul><li>新增前端友链分类切换展示功能，访客可按分类筛选查看</li><li>新增批量反链检测实时进度条，后台操作更直观</li><li>新增友链有效期管理与到期自动提醒功能</li><li>新增反链检测白名单，支持排除特定站点检测</li><li>新增CSV按分类导出功能，数据备份更灵活</li><li>新增友链修改历史记录，全程可追溯</li></ul><h5>🚀 优化</h5><ul><li>大幅优化反链检测并发性能，降低服务器资源占用</li><li>优化邮件通知模板，支持自定义邮件主题与内容</li><li>优化RSS文章聚合缓存机制，页面加载速度提升30%</li><li>优化移动端友链卡片间距与排版效果</li><li>优化后台统计看板，新增反链检测成功率统计</li></ul><h5>🐛 Bug 修复</h5><ul><li>修复CSV导入时分类不存在导致的致命错误</li><li>修复自动通过机制在跨时区服务器上不生效的问题</li><li>修复RSS文章聚合时HTML特殊字符显示异常</li><li>修复深色模式下按钮与输入框样式不统一</li><li>修复定时任务在部分Linux服务器上重复执行的问题</li></ul>",
+    "installation": "<p>1. 下载插件zip安装包</p><p>2. 登录WordPress后台 → 插件 → 安装插件 → 上传插件</p><p>3. 上传完成后激活插件，自动初始化配置，无需手动设置</p>",
     "banner_low": "https://raw.githubusercontent.com/liseezn/see-friends/main/assets/banner-772x250.png",
     "banner_high": "https://raw.githubusercontent.com/liseezn/see-friends/main/assets/banner-1544x500.png",
-    "sha256": "插件zip包的SHA256哈希值",
-    "force_update": "3.2.0" 
+    "sha256": "",
+    "force_update": "3.4.0"
 }

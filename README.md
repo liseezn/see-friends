@@ -6,7 +6,7 @@
 [![GitHub License](https://img.shields.io/github/license/liseezn/see-friends?style=flat-square)](https://github.com/liseezn/see-friends/blob/main/LICENSE)
 [![WordPress Version](https://img.shields.io/badge/WordPress-5.6+-0073aa?style=flat-square)](https://cn.wordpress.org/)
 [![PHP Version](https://img.shields.io/badge/PHP-7.4+-777bb4?style=flat-square)](https://www.php.net/)
-[![Total Installs](https://img.shields.io/badge/总安装量-统计中-4ecdc4?style=flat-square)](https://github.com/liseezn/see-friends)
+[![Total Installs](https://img.shields.io/badge/总安装量-6-4ecdc4?style=flat-square)](https://github.com/liseezn/see-friends)
 
 ## ⭐ 支持本项目，请点一个 Star！
 如果你觉得这个插件好用、省心、开源免费，请在 GitHub 给项目点亮 **Star**！

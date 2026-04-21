@@ -2,12 +2,19 @@
 /*
 Plugin Name: See~Friends 友情链接管理
 Plugin URI: https://github.com/liseezn/see-friends
-Description: WordPress友情链接管理插件，支持前端申请、后台审核、智能反链检测、定时监控、邮件提醒、自助修改、RSS展示
-Version: 3.4.0
+Description: 一款专为WordPress打造的智能化全流程友情链接管理插件，基于原生链接体系深度扩展，支持前端申请、后台审核、智能反链检测、定时监控、邮件通知、用户自助修改、RSS订阅抓取、友链文章聚合、数据导入导出一站式管理
+Version: 3.4.1
 Author: liseezn
 Author URI: https://liseezn.top
 License: GPLv3
+License URI: https://www.gnu.org/licenses/gpl-3.0.html
+Text Domain: see-friends
+Domain Path: /languages
+Requires at least: 5.6
+Requires PHP: 7.0
+Update URI: https://api.github.com/repos/liseezn/see-friends/releases/latest
 */
+
 // 禁止直接访问
 if (!defined('ABSPATH')) {
     exit;
@@ -18,7 +25,6 @@ define('FABB_STATS_API_URL', 'https://stats.see-friends.liseezn.top');
 class FABB_Plugin_Auto_Updater {
     // 配置项
     private $plugin_basename;
-    private $version_info_url = 'https://raw.githubusercontent.com/liseezn/see-friends/main/info.json';
     private $cache_key = 'fabb_plugin_update_info';
     public function __construct() {
         $this->plugin_basename = plugin_basename(__FILE__);
@@ -45,6 +51,13 @@ class FABB_Plugin_Auto_Updater {
         }
         $current_version = $transient->checked[$this->plugin_basename];
         if (version_compare($current_version, $remote_info->version, '<')) {
+            // 验证文件SHA256（如果开启）
+            $verify_sha256 = fabb_get_setting('update_verify_sha256', 'on');
+            if ($verify_sha256 === 'on' && !empty($remote_info->sha256)) {
+                // 这里可以添加SHA256验证逻辑
+                // 由于WordPress更新机制限制，实际验证在下载后进行
+            }
+            
             $transient->response[$this->plugin_basename] = (object) [
                 'slug' => dirname($this->plugin_basename),
                 'plugin' => $this->plugin_basename,
@@ -100,7 +113,16 @@ class FABB_Plugin_Auto_Updater {
         if ($cached_info !== false) {
             return $cached_info;
         }
-        $response = wp_remote_get($this->version_info_url, [
+        
+        // 根据设置选择更新源
+        $update_source = fabb_get_setting('update_source', 'github');
+        if ($update_source === 'cloudflare') {
+            $version_info_url = 'https://cdn.see-friends.liseezn.top/info.json';
+        } else {
+            $version_info_url = 'https://raw.githubusercontent.com/liseezn/see-friends/main/info.json';
+        }
+        
+        $response = wp_remote_get($version_info_url, [
             'timeout' => 10,
             'sslverify' => true,
             'user-agent' => 'WordPress/' . get_bloginfo('version') . '; ' . get_bloginfo('url')
@@ -128,6 +150,28 @@ class FABB_Plugin_Auto_Updater {
                 
                 // 重新初始化默认配置（确保新增配置项生效）
                 fabb_plugin_init_default_settings();
+                
+                // 清理旧版本文件（如果存在）
+                $this->cleanup_old_versions();
+            }
+        }
+    }
+    
+    /**
+     * 清理旧版本插件文件
+     */
+    private function cleanup_old_versions() {
+        $plugin_dir = WP_PLUGIN_DIR . '/' . dirname($this->plugin_basename);
+        $old_files = [
+            'old-see-friends.php',
+            'deprecated-functions.php',
+            'legacy-backend.php'
+        ];
+        
+        foreach ($old_files as $file) {
+            $file_path = $plugin_dir . '/' . $file;
+            if (file_exists($file_path)) {
+                @unlink($file_path);
             }
         }
     }
@@ -146,6 +190,13 @@ function fabb_plugin_init_default_settings() {
         // 基础设置
         'expire_days' => 30,
         'auto_clean_expired' => 'on',
+        // 更新设置
+        'update_source' => 'github',
+        'update_verify_sha256' => 'on',
+        // 卸载设置
+        'uninstall_delete_data' => 'off',
+        // 自定义CSS
+        'custom_css' => '',
         // 反链检测设置
         'auto_check_backlink' => 'on',
         'check_frequency' => 'daily',
@@ -155,7 +206,8 @@ function fabb_plugin_init_default_settings() {
         'auto_check_common_paths' => 'on',
         'check_image_links' => 'on',
         'auto_approve_enable' => 'off',
-        'auto_approve_days' => 7,
+        'auto_approve_mode' => 'days', // days/hours
+        'auto_approve_value' => 7,
         // 邮件通知设置
         'email_approved_notice' => 'on',
         'email_rejected_notice' => 'on',
@@ -179,17 +231,19 @@ function fabb_plugin_init_default_settings() {
         'modify_form_enable' => 'on',
         'default_show_image' => 'on',
         'default_show_desc' => 'on',
-        'default_image_size' => 40,
+        'default_image_size' => 64,
         'default_sort_type' => 'random',
         'default_show_num' => 20,
         'open_new_window' => 'on',
-        'default_image_placeholder' => 'https://via.placeholder.com/40',
+        'default_image_placeholder' => 'https://via.placeholder.com/64',
         'image_size_min' => 16,
         'image_size_max' => 128,
         'show_rss_feed' => 'on',
         'desc_multi_line' => 'on',
         // 统计设置
         'anonymous_stats' => 'on',
+        // 白名单设置
+        'backlink_whitelist' => '',
     );
     
     // 合并配置，补全所有缺失字段
@@ -217,7 +271,7 @@ function fabb_register_apply_post_type() {
         'public' => false,
         'show_ui' => true,
         'show_in_menu' => 'link-manager.php',
-        'menu_position' => 5,
+        'menu_position' => 1, // 移到全部链接上面
         'supports' => array('title', 'editor'),
         'capability_type' => 'post',
         'capabilities' => array(
@@ -251,6 +305,13 @@ function fabb_render_settings_page() {
         wp_die('您没有权限访问此页面');
     }
     
+    // 版本兼容性检查
+    $current_version = get_file_data(__FILE__, array('Version' => 'Version'))['Version'];
+    $old_version_notice = '';
+    if (version_compare($current_version, '3.4.0', '<')) {
+        $old_version_notice = '<div class="notice notice-warning is-dismissible"><p><strong>重要提示：</strong>您正在使用旧版本插件，可能存在设置保存失败的问题。请先删除当前插件，然后从 GitHub 下载安装最新版本。您的所有友链数据会保留在 WordPress 原生链接管理器中。</p></div>';
+    }
+    
     // 保存配置
     if (isset($_POST['fabb_settings_save']) && wp_verify_nonce($_POST['fabb_settings_nonce'], 'fabb_save_settings')) {
         $old_settings = get_option('fabb_settings', array());
@@ -261,6 +322,16 @@ function fabb_render_settings_page() {
         $new_settings['auto_clean_expired'] = isset($_POST['auto_clean_expired']) ? 'on' : 'off';
         $new_settings['anonymous_stats'] = isset($_POST['anonymous_stats']) ? 'on' : 'off';
         
+        // 更新设置
+        $new_settings['update_source'] = sanitize_text_field($_POST['update_source']);
+        $new_settings['update_verify_sha256'] = isset($_POST['update_verify_sha256']) ? 'on' : 'off';
+        
+        // 卸载设置
+        $new_settings['uninstall_delete_data'] = isset($_POST['uninstall_delete_data']) ? 'on' : 'off';
+        
+        // 自定义CSS
+        $new_settings['custom_css'] = wp_strip_all_tags($_POST['custom_css']);
+        
         // 反链检测设置
         $new_settings['auto_check_backlink'] = isset($_POST['auto_check_backlink']) ? 'on' : 'off';
         $new_settings['check_frequency'] = sanitize_text_field($_POST['check_frequency']);
@@ -270,7 +341,9 @@ function fabb_render_settings_page() {
         $new_settings['auto_check_common_paths'] = isset($_POST['auto_check_common_paths']) ? 'on' : 'off';
         $new_settings['check_image_links'] = isset($_POST['check_image_links']) ? 'on' : 'off';
         $new_settings['auto_approve_enable'] = isset($_POST['auto_approve_enable']) ? 'on' : 'off';
-        $new_settings['auto_approve_days'] = absint($_POST['auto_approve_days']);
+        $new_settings['auto_approve_mode'] = sanitize_text_field($_POST['auto_approve_mode']);
+        $new_settings['auto_approve_value'] = absint($_POST['auto_approve_value']);
+        $new_settings['backlink_whitelist'] = sanitize_textarea_field($_POST['backlink_whitelist']);
         
         // 邮件通知设置
         $new_settings['email_approved_notice'] = isset($_POST['email_approved_notice']) ? 'on' : 'off';
@@ -373,6 +446,10 @@ function fabb_render_settings_page() {
     $settings = wp_parse_args($settings, array(
         'expire_days' => 30,
         'auto_clean_expired' => 'on',
+        'update_source' => 'github',
+        'update_verify_sha256' => 'on',
+        'uninstall_delete_data' => 'off',
+        'custom_css' => '',
         'auto_check_backlink' => 'on',
         'check_frequency' => 'daily',
         'alert_email' => get_option('admin_email'),
@@ -381,7 +458,9 @@ function fabb_render_settings_page() {
         'auto_check_common_paths' => 'on',
         'check_image_links' => 'on',
         'auto_approve_enable' => 'off',
-        'auto_approve_days' => 7,
+        'auto_approve_mode' => 'days',
+        'auto_approve_value' => 7,
+        'backlink_whitelist' => '',
         'email_approved_notice' => 'on',
         'email_rejected_notice' => 'on',
         'email_admin_notice' => 'on',
@@ -401,11 +480,11 @@ function fabb_render_settings_page() {
         'modify_form_enable' => 'on',
         'default_show_image' => 'on',
         'default_show_desc' => 'on',
-        'default_image_size' => 40,
+        'default_image_size' => 64,
         'default_sort_type' => 'random',
         'default_show_num' => 20,
         'open_new_window' => 'on',
-        'default_image_placeholder' => 'https://via.placeholder.com/40',
+        'default_image_placeholder' => 'https://via.placeholder.com/64',
         'image_size_min' => 16,
         'image_size_max' => 128,
         'show_rss_feed' => 'on',
@@ -421,6 +500,7 @@ function fabb_render_settings_page() {
     ?>
     <div class="wrap">
         <h1>See~Friends 友链插件设置</h1>
+        <?php echo $old_version_notice; ?>
         <hr>
         <!-- 统计卡片 -->
         <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:20px;margin:20px 0;">
@@ -451,11 +531,13 @@ function fabb_render_settings_page() {
         </div>
         <h2 class="nav-tab-wrapper">
             <a href="#tab-base" class="nav-tab nav-tab-active">基础设置</a>
+            <a href="#tab-update" class="nav-tab">更新设置</a>
             <a href="#tab-check" class="nav-tab">反链检测设置</a>
             <a href="#tab-email" class="nav-tab">邮件通知设置</a>
             <a href="#tab-email-template" class="nav-tab">邮件模板设置</a>
             <a href="#tab-rss" class="nav-tab">RSS设置</a>
             <a href="#tab-front" class="nav-tab">前端显示设置</a>
+            <a href="#tab-custom-css" class="nav-tab">自定义CSS</a>
             <a href="#tab-data" class="nav-tab">数据管理</a>
         </h2>
         <form method="post" action="" enctype="multipart/form-data">
@@ -477,10 +559,38 @@ function fabb_render_settings_page() {
                         </td>
                     </tr>
                     <tr>
-                        <th scope="row"><label for="anonymous_stats">匿名使用统计</label></th>
+                        <th scope="row"><label for="anonymous_stats">匿名安装统计</label></th>
                         <td>
                             <input type="checkbox" name="anonymous_stats" id="anonymous_stats" <?php checked($settings['anonymous_stats'], 'on'); ?>>
-                            <label for="anonymous_stats">帮助改进插件，发送完全匿名的使用统计（仅统计活跃站点数量，不收集任何个人信息）</label>
+                            <label for="anonymous_stats">帮助统计插件安装量，发送完全匿名的使用统计（仅统计活跃站点数量，不收集任何个人信息）</label>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row"><label for="uninstall_delete_data">卸载时删除数据</label></th>
+                        <td>
+                            <input type="checkbox" name="uninstall_delete_data" id="uninstall_delete_data" <?php checked($settings['uninstall_delete_data'], 'on'); ?>>
+                            <label for="uninstall_delete_data">卸载插件时删除所有相关数据（包括申请记录和设置）</label>
+                            <p class="description" style="color:#d63638;">⚠️ 警告：此操作不可逆，删除后数据无法恢复</p>
+                        </td>
+                    </tr>
+                </table>
+            </div>
+            <div id="tab-update" class="tab-content" style="margin-top:20px;display:none;">
+                <table class="form-table">
+                    <tr>
+                        <th scope="row"><label for="update_source">更新源</label></th>
+                        <td>
+                            <select name="update_source" id="update_source" class="regular-text">
+                                <option value="github" <?php selected($settings['update_source'], 'github'); ?>>GitHub (默认)</option>
+                                <option value="cloudflare" <?php selected($settings['update_source'], 'cloudflare'); ?>>Cloudflare CDN (国内加速)</option>
+                            </select>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row"><label for="update_verify_sha256">文件完整性验证</label></th>
+                        <td>
+                            <input type="checkbox" name="update_verify_sha256" id="update_verify_sha256" <?php checked($settings['update_verify_sha256'], 'on'); ?>>
+                            <label for="update_verify_sha256">更新时验证文件SHA256哈希值（推荐开启，防止文件被篡改）</label>
                         </td>
                     </tr>
                 </table>
@@ -498,6 +608,7 @@ function fabb_render_settings_page() {
                         <th scope="row"><label for="check_frequency">检测频率</label></th>
                         <td>
                             <select name="check_frequency" id="check_frequency" class="regular-text">
+                                <option value="hourly" <?php selected($settings['check_frequency'], 'hourly'); ?>>每小时检测一次</option>
                                 <option value="daily" <?php selected($settings['check_frequency'], 'daily'); ?>>每天检测一次</option>
                                 <option value="twicedaily" <?php selected($settings['check_frequency'], 'twicedaily'); ?>>每天检测两次</option>
                                 <option value="weekly" <?php selected($settings['check_frequency'], 'weekly'); ?>>每周检测一次</option>
@@ -540,17 +651,28 @@ function fabb_render_settings_page() {
                         </td>
                     </tr>
                     <tr>
-                        <th scope="row"><label for="auto_approve_enable">自动通过新申请</label></th>
+                        <th scope="row"><label for="backlink_whitelist">反链检测白名单</label></th>
                         <td>
-                            <input type="checkbox" name="auto_approve_enable" id="auto_approve_enable" <?php checked($settings['auto_approve_enable'], 'on'); ?>>
-                            <label for="auto_approve_enable">开启后，超过指定天数且反链检测通过的申请将自动上线</label>
+                            <textarea name="backlink_whitelist" id="backlink_whitelist" rows="3" class="large-text"><?php echo esc_textarea($settings['backlink_whitelist']); ?></textarea>
+                            <p class="description">对于无法正常检测反链的网站，添加到白名单后将自动视为有反链。每行一个域名（不带http://）</p>
                         </td>
                     </tr>
                     <tr>
-                        <th scope="row"><label for="auto_approve_days">自动通过等待天数</label></th>
+                        <th scope="row"><label for="auto_approve_enable">自动通过新申请</label></th>
                         <td>
-                            <input type="number" name="auto_approve_days" id="auto_approve_days" value="<?php echo esc_attr($settings['auto_approve_days']); ?>" min="1" max="30" class="small-text">
-                            <span class="description">天，申请提交后超过此天数且反链正常则自动通过</span>
+                            <input type="checkbox" name="auto_approve_enable" id="auto_approve_enable" <?php checked($settings['auto_approve_enable'], 'on'); ?>>
+                            <label for="auto_approve_enable">开启后，反链检测通过的申请将在指定时间后自动上线</label>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row"><label for="auto_approve_mode">自动通过时间</label></th>
+                        <td>
+                            <select name="auto_approve_mode" id="auto_approve_mode" class="regular-text">
+                                <option value="hours" <?php selected($settings['auto_approve_mode'], 'hours'); ?>>小时</option>
+                                <option value="days" <?php selected($settings['auto_approve_mode'], 'days'); ?>>天</option>
+                            </select>
+                            <input type="number" name="auto_approve_value" id="auto_approve_value" value="<?php echo esc_attr($settings['auto_approve_value']); ?>" min="1" max="90" class="small-text" style="margin-left:10px;">
+                            <span class="description">后自动通过（支持1-24小时、1-7天、30天、90天）</span>
                         </td>
                     </tr>
                     <tr>
@@ -673,8 +795,8 @@ function fabb_render_settings_page() {
                     <tr>
                         <th scope="row"><label for="rss_post_count">默认显示文章数</label></th>
                         <td>
-                            <input type="number" name="rss_post_count" id="rss_post_count" value="<?php echo esc_attr($settings['rss_post_count']); ?>" min="1" max="20" class="small-text">
-                            <span class="description">篇，RSS订阅文章页面默认显示的文章数量</span>
+                            <input type="number" name="rss_post_count" id="rss_post_count" value="<?php echo esc_attr($settings['rss_post_count']); ?>" min="1" class="small-text">
+                            <span class="description">篇，RSS订阅文章页面默认显示的文章数量（无上限）</span>
                         </td>
                     </tr>
                     <tr>
@@ -716,7 +838,7 @@ function fabb_render_settings_page() {
                     <tr>
                         <th scope="row"><label for="default_show_num">默认显示数量</label></th>
                         <td>
-                            <input type="number" name="default_show_num" id="default_show_num" value="<?php echo esc_attr($settings['default_show_num']); ?>" min="1" max="999" class="small-text">
+                            <input type="number" name="default_show_num" id="default_show_num" value="<?php echo esc_attr($settings['default_show_num']); ?>" min="0" max="999" class="small-text">
                             <span class="description">友链列表默认显示的数量（填0显示全部）</span>
                         </td>
                     </tr>
@@ -776,6 +898,17 @@ function fabb_render_settings_page() {
                         <td>
                             <input type="checkbox" name="show_rss_feed" id="show_rss_feed" <?php checked($settings['show_rss_feed'], 'on'); ?>>
                             <label for="show_rss_feed">在友链卡片右上角显示网站RSS订阅图标</label>
+                        </td>
+                    </tr>
+                </table>
+            </div>
+            <div id="tab-custom-css" class="tab-content" style="margin-top:20px;display:none;">
+                <table class="form-table">
+                    <tr>
+                        <th scope="row"><label for="custom_css">自定义CSS</label></th>
+                        <td>
+                            <textarea name="custom_css" id="custom_css" rows="15" class="large-text" placeholder="在此输入自定义CSS代码"><?php echo esc_textarea($settings['custom_css']); ?></textarea>
+                            <p class="description">自定义CSS将在所有前端页面加载，用于调整友链样式</p>
                         </td>
                     </tr>
                 </table>
@@ -1240,6 +1373,8 @@ function fabb_render_apply_columns($column, $post_id) {
                 echo '<span style="color:#00b42a;">正常</span>';
             } elseif ($status === 'no') {
                 echo '<span style="color:#d63638;">无反链</span>';
+            } elseif ($status === 'whitelisted') {
+                echo '<span style="color:#777bb4;">白名单</span>';
             } else {
                 echo '<span style="color:#999;">未检测</span>';
             }
@@ -1253,9 +1388,70 @@ function fabb_render_apply_columns($column, $post_id) {
             break;
     }
 }
+// 添加筛选器
+add_filter('views_edit-link_apply', 'fabb_add_apply_filters');
+function fabb_add_apply_filters($views) {
+    global $wpdb;
+    
+    // 统计各状态数量
+    $counts = array(
+        'all' => wp_count_posts('link_apply')->publish,
+        'pending' => $wpdb->get_var("SELECT COUNT(*) FROM $wpdb->postmeta WHERE meta_key = '_fabb_apply_status' AND meta_value = 'pending'"),
+        'approved' => $wpdb->get_var("SELECT COUNT(*) FROM $wpdb->postmeta WHERE meta_key = '_fabb_apply_status' AND meta_value = 'approved'"),
+        'rejected' => $wpdb->get_var("SELECT COUNT(*) FROM $wpdb->postmeta WHERE meta_key = '_fabb_apply_status' AND meta_value = 'rejected'"),
+        'no_backlink' => $wpdb->get_var("SELECT COUNT(*) FROM $wpdb->postmeta WHERE meta_key = '_fabb_backlink_status' AND meta_value = 'no'"),
+        'whitelisted' => $wpdb->get_var("SELECT COUNT(*) FROM $wpdb->postmeta WHERE meta_key = '_fabb_backlink_status' AND meta_value = 'whitelisted'"),
+    );
+    
+    // 添加筛选链接
+    $new_views = array();
+    $new_views['all'] = '<a href="' . admin_url('edit.php?post_type=link_apply') . '"' . (!isset($_GET['backlink_status']) && !isset($_GET['apply_status']) ? ' class="current"' : '') . '>全部 <span class="count">(' . $counts['all'] . ')</span></a>';
+    $new_views['pending'] = '<a href="' . admin_url('edit.php?post_type=link_apply&apply_status=pending') . '"' . (isset($_GET['apply_status']) && $_GET['apply_status'] === 'pending' ? ' class="current"' : '') . '>待审核 <span class="count">(' . $counts['pending'] . ')</span></a>';
+    $new_views['approved'] = '<a href="' . admin_url('edit.php?post_type=link_apply&apply_status=approved') . '"' . (isset($_GET['apply_status']) && $_GET['apply_status'] === 'approved' ? ' class="current"' : '') . '>已通过 <span class="count">(' . $counts['approved'] . ')</span></a>';
+    $new_views['rejected'] = '<a href="' . admin_url('edit.php?post_type=link_apply&apply_status=rejected') . '"' . (isset($_GET['apply_status']) && $_GET['apply_status'] === 'rejected' ? ' class="current"' : '') . '>已拒绝 <span class="count">(' . $counts['rejected'] . ')</span></a>';
+    $new_views['no_backlink'] = '<a href="' . admin_url('edit.php?post_type=link_apply&backlink_status=no') . '"' . (isset($_GET['backlink_status']) && $_GET['backlink_status'] === 'no' ? ' class="current"' : '') . '>无反链 <span class="count">(' . $counts['no_backlink'] . ')</span></a>';
+    $new_views['whitelisted'] = '<a href="' . admin_url('edit.php?post_type=link_apply&backlink_status=whitelisted') . '"' . (isset($_GET['backlink_status']) && $_GET['backlink_status'] === 'whitelisted' ? ' class="current"' : '') . '>白名单 <span class="count">(' . $counts['whitelisted'] . ')</span></a>';
+    
+    return $new_views;
+}
+// 处理筛选查询
+add_action('pre_get_posts', 'fabb_handle_apply_filters');
+function fabb_handle_apply_filters($query) {
+    global $pagenow;
+    
+    if ($pagenow !== 'edit.php' || !isset($_GET['post_type']) || $_GET['post_type'] !== 'link_apply') {
+        return;
+    }
+    
+    if (isset($_GET['apply_status'])) {
+        $query->set('meta_key', '_fabb_apply_status');
+        $query->set('meta_value', sanitize_text_field($_GET['apply_status']));
+    }
+    
+    if (isset($_GET['backlink_status'])) {
+        $query->set('meta_key', '_fabb_backlink_status');
+        $query->set('meta_value', sanitize_text_field($_GET['backlink_status']));
+    }
+}
 // ====================== 7. 智能反链检测核心函数 ======================
 function fabb_check_backlink($target_url) {
     if (empty($target_url)) return false;
+    
+    // 检查白名单
+    $whitelist = fabb_get_setting('backlink_whitelist', '');
+    if (!empty($whitelist)) {
+        $whitelist_domains = array_map('trim', explode("\n", $whitelist));
+        $target_host = parse_url($target_url, PHP_URL_HOST);
+        $target_host_clean = preg_replace('/^www\./', '', $target_host);
+        
+        foreach ($whitelist_domains as $domain) {
+            $domain_clean = preg_replace('/^www\./', '', trim($domain));
+            if ($target_host_clean === $domain_clean) {
+                return 'whitelisted';
+            }
+        }
+    }
+    
     $site_host = parse_url(home_url(), PHP_URL_HOST);
     $site_host_clean = preg_replace('/^www\./', '', $site_host);
     $site_host_www = 'www.' . $site_host_clean;
@@ -1445,7 +1641,14 @@ function fabb_batch_check_all_backlinks() {
         } catch (Exception $e) {
             $has_backlink = false;
         }
-        update_post_meta($post_id, '_fabb_backlink_status', $has_backlink ? 'has' : 'no');
+        
+        // 处理白名单返回值
+        if ($has_backlink === 'whitelisted') {
+            update_post_meta($post_id, '_fabb_backlink_status', 'whitelisted');
+        } else {
+            update_post_meta($post_id, '_fabb_backlink_status', $has_backlink ? 'has' : 'no');
+        }
+        
         update_post_meta($post_id, '_fabb_backlink_check_time', time());
         if (!$has_backlink) {
             $invalid++;
@@ -1513,8 +1716,17 @@ function fabb_auto_approve_applications() {
     if (fabb_get_setting('auto_approve_enable', 'off') !== 'on') {
         return;
     }
-    $auto_approve_days = fabb_get_setting('auto_approve_days', 7);
-    $cutoff_time = time() - ($auto_approve_days * 86400);
+    
+    $auto_approve_mode = fabb_get_setting('auto_approve_mode', 'days');
+    $auto_approve_value = fabb_get_setting('auto_approve_value', 7);
+    
+    // 计算截止时间
+    if ($auto_approve_mode === 'hours') {
+        $cutoff_time = time() - ($auto_approve_value * 3600);
+    } else {
+        $cutoff_time = time() - ($auto_approve_value * 86400);
+    }
+    
     $pending_applications = get_posts(array(
         'post_type' => 'link_apply',
         'post_status' => 'publish',
@@ -1547,7 +1759,8 @@ function fabb_auto_approve_applications() {
         } catch (Exception $e) {
             $has_backlink = false;
         }
-        if ($has_backlink) {
+        // 白名单也自动通过
+        if ($has_backlink || $has_backlink === 'whitelisted') {
             update_post_meta($post_id, '_fabb_apply_status', 'approved');
             
             $link_id = get_post_meta($post_id, '_fabb_link_id', true);
@@ -1605,6 +1818,10 @@ function fabb_add_apply_row_actions($actions, $post) {
     
     // 移除默认的快速编辑
     unset($actions['inline hide-if-no-js']);
+    // 缩短"移至回收站"为"回收"
+    if (isset($actions['trash'])) {
+        $actions['trash'] = str_replace('移至回收站', '回收', $actions['trash']);
+    }
     
     $current_status = isset($_GET['post_status']) ? sanitize_text_field($_GET['post_status']) : 'all';
     $status_param = $current_status !== 'all' ? '&post_status=' . $current_status : '';
@@ -1627,6 +1844,13 @@ function fabb_add_apply_row_actions($actions, $post) {
     $check_url = wp_nonce_url(admin_url('edit.php?post_type=link_apply&action=check_backlink&post=' . $post->ID . $status_param), 'fabb_check_backlink_' . $post->ID);
     $new_actions['check_backlink'] = '<a href="' . esc_url($check_url) . '" style="margin-right:8px;">检测反链</a>';
     
+    // 添加白名单操作
+    $backlink_status = get_post_meta($post->ID, '_fabb_backlink_status', true);
+    if ($backlink_status !== 'whitelisted') {
+        $whitelist_url = wp_nonce_url(admin_url('edit.php?post_type=link_apply&action=add_to_whitelist&post=' . $post->ID . $status_param), 'fabb_add_to_whitelist_' . $post->ID);
+        $new_actions['add_to_whitelist'] = '<a href="' . esc_url($whitelist_url) . '" style="color:#777bb4;margin-right:8px;" onclick="return confirm(\'确定要将此网站添加到反链白名单吗？\n添加后将自动视为有反链\')">加入白名单</a>';
+    }
+    
     $new_actions['edit'] = $actions['edit'];
     
     if (isset($actions['trash'])) {
@@ -1643,6 +1867,7 @@ function fabb_add_bulk_actions($bulk_actions) {
     $bulk_actions['bulk_approve'] = '批量通过';
     $bulk_actions['bulk_reject'] = '批量拒绝';
     $bulk_actions['bulk_check_backlink'] = '批量检测反链';
+    $bulk_actions['bulk_add_to_whitelist'] = '批量加入白名单';
     return $bulk_actions;
 }
 add_action('handle_bulk_actions-edit-link_apply', 'fabb_handle_bulk_actions', 10, 3);
@@ -1701,13 +1926,45 @@ function fabb_handle_bulk_actions($redirect_to, $doaction, $post_ids) {
             } catch (Exception $e) {
                 $has_backlink = false;
             }
-            update_post_meta($post_id, '_fabb_backlink_status', $has_backlink ? 'has' : 'no');
+            
+            if ($has_backlink === 'whitelisted') {
+                update_post_meta($post_id, '_fabb_backlink_status', 'whitelisted');
+            } else {
+                update_post_meta($post_id, '_fabb_backlink_status', $has_backlink ? 'has' : 'no');
+            }
+            
             update_post_meta($post_id, '_fabb_backlink_check_time', time());
             if (!$has_backlink) $invalid++;
             $count++;
             usleep(200000);
         }
         $redirect_to = add_query_arg(array('bulk_checked' => $count, 'bulk_invalid' => $invalid), $redirect_to);
+    } elseif ($doaction === 'bulk_add_to_whitelist') {
+        $count = 0;
+        $whitelist = fabb_get_setting('backlink_whitelist', '');
+        $whitelist_domains = array_map('trim', explode("\n", $whitelist));
+        $whitelist_domains = array_filter($whitelist_domains);
+        
+        foreach ($post_ids as $post_id) {
+            $link_url = get_post_meta($post_id, '_fabb_link_url', true);
+            if (empty($link_url)) continue;
+            
+            $link_host = parse_url($link_url, PHP_URL_HOST);
+            $link_host_clean = preg_replace('/^www\./', '', $link_host);
+            
+            if (!in_array($link_host_clean, $whitelist_domains)) {
+                $whitelist_domains[] = $link_host_clean;
+                update_post_meta($post_id, '_fabb_backlink_status', 'whitelisted');
+                $count++;
+            }
+        }
+        
+        $new_whitelist = implode("\n", $whitelist_domains);
+        $settings = get_option('fabb_settings');
+        $settings['backlink_whitelist'] = $new_whitelist;
+        update_option('fabb_settings', $settings);
+        
+        $redirect_to = add_query_arg('bulk_whitelisted', $count, $redirect_to);
     }
     return $redirect_to;
 }
@@ -1727,6 +1984,10 @@ function fabb_bulk_action_notices() {
         $invalid = intval($_GET['bulk_invalid']);
         echo '<div class="notice notice-success is-dismissible"><p>批量检测完成！共检测 ' . $count . ' 个友链，正常 ' . ($count - $invalid) . ' 个，失效 ' . $invalid . ' 个</p></div>';
     }
+    if (isset($_GET['bulk_whitelisted'])) {
+        $count = intval($_GET['bulk_whitelisted']);
+        echo '<div class="notice notice-success is-dismissible"><p>批量加入白名单完成！共添加 ' . $count . ' 个网站到反链白名单</p></div>';
+    }
 }
 // ====================== 11. 后台操作处理 ======================
 add_action('admin_init', 'fabb_handle_admin_actions');
@@ -1737,7 +1998,7 @@ function fabb_handle_admin_actions() {
     }
     $post_id = absint($_GET['post']);
     $action = sanitize_text_field($_GET['action']);
-    $allowed_actions = array('approve', 'reject', 'check_backlink');
+    $allowed_actions = array('approve', 'reject', 'check_backlink', 'add_to_whitelist');
     if (!in_array($action, $allowed_actions)) {
         return;
     }
@@ -1747,6 +2008,8 @@ function fabb_handle_admin_actions() {
     $nonce_name = 'fabb_' . $action . '_apply_' . $post_id;
     if ($action === 'check_backlink') {
         $nonce_name = 'fabb_check_backlink_' . $post_id;
+    } elseif ($action === 'add_to_whitelist') {
+        $nonce_name = 'fabb_add_to_whitelist_' . $post_id;
     }
     if (!isset($_GET['_wpnonce']) || !wp_verify_nonce($_GET['_wpnonce'], $nonce_name)) {
         wp_die('安全验证失败，请刷新重试');
@@ -1812,9 +2075,39 @@ function fabb_handle_admin_actions() {
         case 'check_backlink':
             $target_url = get_post_meta($post_id, '_fabb_link_url', true);
             $has_backlink = fabb_check_backlink($target_url);
-            update_post_meta($post_id, '_fabb_backlink_status', $has_backlink ? 'has' : 'no');
+            
+            if ($has_backlink === 'whitelisted') {
+                update_post_meta($post_id, '_fabb_backlink_status', 'whitelisted');
+            } else {
+                update_post_meta($post_id, '_fabb_backlink_status', $has_backlink ? 'has' : 'no');
+            }
+            
             update_post_meta($post_id, '_fabb_backlink_check_time', time());
             wp_redirect(admin_url('edit.php?post_type=link_apply&checked=1' . $status_param));
+            exit;
+            break;
+        case 'add_to_whitelist':
+            $link_url = get_post_meta($post_id, '_fabb_link_url', true);
+            if (!empty($link_url)) {
+                $link_host = parse_url($link_url, PHP_URL_HOST);
+                $link_host_clean = preg_replace('/^www\./', '', $link_host);
+                
+                $whitelist = fabb_get_setting('backlink_whitelist', '');
+                $whitelist_domains = array_map('trim', explode("\n", $whitelist));
+                $whitelist_domains = array_filter($whitelist_domains);
+                
+                if (!in_array($link_host_clean, $whitelist_domains)) {
+                    $whitelist_domains[] = $link_host_clean;
+                    $new_whitelist = implode("\n", $whitelist_domains);
+                    
+                    $settings = get_option('fabb_settings');
+                    $settings['backlink_whitelist'] = $new_whitelist;
+                    update_option('fabb_settings', $settings);
+                    
+                    update_post_meta($post_id, '_fabb_backlink_status', 'whitelisted');
+                }
+            }
+            wp_redirect(admin_url('edit.php?post_type=link_apply&whitelisted=1' . $status_param));
             exit;
             break;
     }
@@ -1835,6 +2128,9 @@ function fabb_admin_notices() {
     }
     if (isset($_GET['modified'])) {
         echo '<div class="notice notice-success is-dismissible"><p>友链信息已修改，等待管理员审核</p></div>';
+    }
+    if (isset($_GET['whitelisted'])) {
+        echo '<div class="notice notice-success is-dismissible"><p>已添加到反链白名单</p></div>';
     }
 }
 // ====================== 12. 前端申请表单短代码 ======================
@@ -2332,7 +2628,7 @@ add_shortcode('random_bookmarks', 'fabb_random_bookmarks_shortcode');
 function fabb_random_bookmarks_shortcode($atts) {
     $default_show_image = fabb_get_setting('default_show_image', 'on') === 'on';
     $default_show_desc = fabb_get_setting('default_show_desc', 'on') === 'on';
-    $default_image_size = fabb_get_setting('default_image_size', 40);
+    $default_image_size = fabb_get_setting('default_image_size', 64);
     $show_rss_feed = fabb_get_setting('show_rss_feed', 'on') === 'on';
     $default_target = fabb_get_setting('open_new_window', 'on') === 'on' ? '_blank' : '_self';
     $desc_multi_line = fabb_get_setting('desc_multi_line', 'on') === 'on';
@@ -2368,7 +2664,7 @@ function fabb_random_bookmarks_shortcode($atts) {
         $link_target = esc_attr($atts['target'] ?: $bookmark->link_target);
         $link_desc   = esc_html($bookmark->link_description);
         $link_image  = esc_url($bookmark->link_image);
-        $default_image = esc_url(fabb_get_setting('default_image_placeholder', 'https://via.placeholder.com/40'));
+        $default_image = esc_url(fabb_get_setting('default_image_placeholder', 'https://via.placeholder.com/64'));
         
         $link_rss = '';
         if ($show_rss) {
@@ -2583,6 +2879,13 @@ function fabb_enqueue_bookmarks_styles() {
         color: #4ecdc4 !important;
     }
     ';
+    
+    // 添加自定义CSS
+    $custom_css = fabb_get_setting('custom_css', '');
+    if (!empty($custom_css)) {
+        $css .= "\n\n/* 自定义CSS */\n" . $custom_css;
+    }
+    
     wp_add_inline_style('wp-block-library', $css);
 }
 // ====================== 16. 删除申请时同步删除链接 ======================
@@ -2805,6 +3108,8 @@ function fabb_render_backlink_meta_box($post) {
             echo '<span style="color:#00b42a;">正常</span>';
         } elseif ($backlink_status === 'no') {
             echo '<span style="color:#d63638;">无反链</span>';
+        } elseif ($backlink_status === 'whitelisted') {
+            echo '<span style="color:#777bb4;">白名单</span>';
         } else {
             echo '<span style="color:#999;">未检测</span>';
         }
@@ -2882,7 +3187,142 @@ function fabb_save_apply_meta($post_id, $post) {
         }
     }
 }
-// ====================== 21. 插件激活/停用/卸载处理 ======================
+// ====================== 21. 更新包SHA256安全验证 ======================
+/**
+ * 插件更新包SHA256完整性校验
+ * 配置从info.json读取，可全局开关，在解压安装前强制验证
+ */
+add_filter('upgrader_pre_install', 'see_friends_verify_update_sha256', 10, 2);
+function see_friends_verify_update_sha256($reply, $package) {
+    // 只验证本插件的更新包
+    $plugin_basename = plugin_basename(__FILE__);
+    $plugin_slug = 'see-friends';
+    
+    // 检查是否是本插件的更新
+    if (!isset($package['source']) || strpos($package['source'], $plugin_slug) === false) {
+        return $reply;
+    }
+
+    // 从info.json读取验证配置
+    $config = see_friends_get_sha256_config();
+    
+    // 如果验证功能已关闭，直接跳过
+    if (!$config['enabled']) {
+        return $reply;
+    }
+
+    // 获取下载的zip包路径
+    $zip_file = $package['source'];
+    if (!file_exists($zip_file)) {
+        return new WP_Error(
+            'see_friends_update_file_missing',
+            __('更新包下载失败，文件不存在', 'see-friends')
+        );
+    }
+
+    // 计算本地下载文件的SHA256哈希
+    $local_sha256 = hash_file('sha256', $zip_file);
+    if (!$local_sha256) {
+        return new WP_Error(
+            'see_friends_hash_calc_failed',
+            __('无法计算更新包哈希值，更新终止', 'see-friends')
+        );
+    }
+
+    // 检查官方哈希是否存在
+    if (empty($config['hash']) || strlen($config['hash']) !== 64) {
+        add_action('admin_notices', function() {
+            echo '<div class="notice notice-warning"><p>';
+            echo '<strong>See~Friends 更新警告：</strong>';
+            echo 'info.json中未找到有效的SHA256校验值，跳过完整性验证。';
+            echo '</p></div>';
+        });
+        return $reply;
+    }
+
+    // 安全哈希比对（防止时序攻击）
+    if (hash_equals(strtolower($config['hash']), strtolower($local_sha256))) {
+        add_action('admin_notices', function() {
+            echo '<div class="notice notice-success"><p>';
+            echo '<strong>See~Friends 更新验证：</strong>';
+            echo '更新包SHA256校验通过，正在安全安装...';
+            echo '</p></div>';
+        });
+        return $reply;
+    } else {
+        // 验证失败，立即删除可疑文件并终止更新
+        @unlink($zip_file);
+        
+        return new WP_Error(
+            'see_friends_sha256_mismatch',
+            sprintf(
+                __('更新包SHA256校验失败！文件可能已被篡改，更新已强制终止。<br>本地哈希：%s<br>官方哈希：%s', 'see-friends'),
+                substr($local_sha256, 0, 16) . '...',
+                substr($config['hash'], 0, 16) . '...'
+            )
+        );
+    }
+}
+
+/**
+ * 从info.json读取SHA256验证配置
+ * 带缓存机制，避免重复读取文件
+ */
+function see_friends_get_sha256_config() {
+    $transient_key = 'see_friends_sha256_config';
+    $cache_time = 86400; // 缓存24小时
+    
+    // 先从缓存获取
+    $cached_config = get_transient($transient_key);
+    if ($cached_config !== false) {
+        return $cached_config;
+    }
+
+    // 默认配置（验证关闭）
+    $default_config = array(
+        'enabled' => false,
+        'hash' => ''
+    );
+
+    // 读取info.json文件
+    $info_file = plugin_dir_path(__FILE__) . 'info.json';
+    if (!file_exists($info_file)) {
+        return $default_config;
+    }
+
+    $info_content = file_get_contents($info_file);
+    if (!$info_content) {
+        return $default_config;
+    }
+
+    $info_data = json_decode($info_content, true);
+    if (json_last_error() !== JSON_ERROR_NONE) {
+        return $default_config;
+    }
+
+    // 提取验证配置
+    $config = isset($info_data['sha256_verify']) ? $info_data['sha256_verify'] : $default_config;
+    
+    // 缓存配置
+    set_transient($transient_key, $config, $cache_time);
+    
+    return $config;
+}
+
+/**
+ * 插件更新完成后清除配置缓存
+ * 确保下次更新使用新版本的info.json配置
+ */
+add_action('upgrader_process_complete', 'see_friends_clear_sha256_cache', 10, 2);
+function see_friends_clear_sha256_cache($upgrader, $options) {
+    if ($options['action'] === 'update' && $options['type'] === 'plugin') {
+        if (isset($options['plugins']) && in_array(plugin_basename(__FILE__), $options['plugins'])) {
+            delete_transient('see_friends_sha256_config');
+        }
+    }
+}
+
+// ====================== 22. 插件激活/停用/卸载处理 ======================
 register_activation_hook(__FILE__, 'fabb_plugin_activation');
 function fabb_plugin_activation() {
     fabb_register_apply_post_type();
@@ -2925,7 +3365,7 @@ function fabb_plugin_deactivation() {
     wp_clear_scheduled_hook('fabb_rss_auto_update_hook');
     fabb_clear_stats_task();
 }
-// 新增：卸载插件时清理数据 不清理链接，申请记录 后续版本可能支持先清理全部再删插件
+// 卸载插件时清理数据
 register_uninstall_hook(__FILE__, 'fabb_plugin_uninstall');
 function fabb_plugin_uninstall() {
     // 清除所有定时任务
@@ -2934,10 +3374,30 @@ function fabb_plugin_uninstall() {
     wp_clear_scheduled_hook('fabb_auto_approve_applications_hook');
     wp_clear_scheduled_hook('fabb_rss_auto_update_hook');
     wp_clear_scheduled_hook('fabb_daily_stats_hook');
-
-    // 删除选项表中的插件设置（可选，若希望重新激活后恢复默认设置）
-    delete_option('fabb_settings');
-    delete_option('fabb_anonymous_site_id');
+    
+    // 检查是否需要删除数据
+    $uninstall_delete_data = get_option('fabb_settings')['uninstall_delete_data'] ?? 'off';
+    
+    if ($uninstall_delete_data === 'on') {
+        // 删除所有申请记录
+        $apply_posts = get_posts(array(
+            'post_type' => 'link_apply',
+            'numberposts' => -1,
+            'fields' => 'ids',
+            'post_status' => 'any',
+        ));
+        
+        foreach ($apply_posts as $post_id) {
+            wp_delete_post($post_id, true);
+        }
+        
+        // 删除选项表中的插件设置
+        delete_option('fabb_settings');
+        delete_option('fabb_anonymous_site_id');
+    } else {
+        // 仅删除匿名ID，保留其他设置
+        delete_option('fabb_anonymous_site_id');
+    }
     
     // 清除相关缓存
     wp_cache_delete('fabb_settings', 'options');

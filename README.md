@@ -2,6 +2,7 @@
 
 ⭐ 支持本项目，请点一个 Star！
 如果你觉得这个插件好用、省心、开源免费，请在 GitHub 给项目点亮 Star！ 这是对作者最大的支持，也能让更多博客站长发现这款工具，激励持续更新维护。
+
 [![GitHub Stars](https://img.shields.io/github/stars/liseezn/see-friends?style=flat-square)](https://github.com/liseezn/see-friends)
 [![GitHub Forks](https://img.shields.io/github/forks/liseezn/see-friends?style=flat-square)](https://github.com/liseezn/see-friends)
 [![GitHub Issues](https://img.shields.io/github/issues/liseezn/see-friends?style=flat-square)](https://github.com/liseezn/see-friends/issues)

@@ -1,14 +1,15 @@
 # SEE~Friends 友情链接管理插件
+
+⭐ 支持本项目，请点一个 Star！
+如果你觉得这个插件好用、省心、开源免费，请在 GitHub 给项目点亮 Star！ 这是对作者最大的支持，也能让更多博客站长发现这款工具，激励持续更新维护。
 [![GitHub Stars](https://img.shields.io/github/stars/liseezn/see-friends?style=flat-square)](https://github.com/liseezn/see-friends)
 [![GitHub Forks](https://img.shields.io/github/forks/liseezn/see-friends?style=flat-square)](https://github.com/liseezn/see-friends)
 [![GitHub Issues](https://img.shields.io/github/issues/liseezn/see-friends?style=flat-square)](https://github.com/liseezn/see-friends/issues)
 [![GitHub License](https://img.shields.io/github/license/liseezn/see-friends?style=flat-square)](https://github.com/liseezn/see-friends/blob/main/LICENSE)
 [![WordPress Version](https://img.shields.io/badge/WordPress-5.6+-0073aa?style=flat-square)](https://cn.wordpress.org/)
 [![PHP Version](https://img.shields.io/badge/PHP-7.0+-777bb4?style=flat-square)](https://www.php.net/)
-[![Total Installs](https://img.shields.io/badge/总安装量-6-4ecdc4?style=flat-square)](https://github.com/liseezn/see-friends)
+[![Total Installs](https://img.shields.io/badge/总安装量-9(截止26.4.26)-4ecdc4?style=flat-square)](https://github.com/liseezn/see-friends)
 
-⭐ 支持本项目，请点一个 Star！
-如果你觉得这个插件好用、省心、开源免费，请在 GitHub 给项目点亮 Star！ 这是对作者最大的支持，也能让更多博客站长发现这款工具，激励持续更新维护。
 
 专为 WordPress 打造的智能化全流程友情链接管理插件 ，基于原生链接体系深度扩展，无冗余臃肿代码，轻量高性能。 完整覆盖：前端申请、后台审核、智能反链检测、定时监控、邮件通知、用户自助修改、RSS订阅抓取、友链文章聚合、数据导入导出一站式管理。
 

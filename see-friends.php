@@ -3,7 +3,7 @@
 Plugin Name: See~Friends 友情链接管理
 Plugin URI: https://github.com/liseezn/see-friends
 Description: 一款专为WordPress打造的智能化全流程友情链接管理插件，基于原生链接体系深度扩展，支持前端申请、后台审核、智能反链检测、定时监控、邮件通知、用户自助修改、RSS订阅抓取、友链文章聚合、数据导入导出一站式管理
-Version: 3.4.1
+Version: 3.5.0
 Author: liseezn
 Author URI: https://liseezn.top
 License: GPLv3
@@ -178,11 +178,41 @@ class FABB_Plugin_Auto_Updater {
 }
 // 初始化自动更新器
 new FABB_Plugin_Auto_Updater();
+// ====================== 0. 常量定义 ======================
+define('FABB_VERSION', '3.5.0');
+define('FABB_PLUGIN_DIR', plugin_dir_path(__FILE__));
+define('FABB_PLUGIN_URL', plugin_dir_url(__FILE__));
+
+define('FABB_BACKLINK_CHECK_DELAY', 300000);
+define('FABB_BACKLINK_RETRY_DELAY', 2);
+define('FABB_AUTO_CHECK_DELAY', 200000);
+define('FABB_CANDIDATE_LINKS_LIMIT', 10);
+define('FABB_REQUEST_TIMEOUT', 15);
+define('FABB_REQUEST_RETRIES', 2);
+define('FABB_CACHE_TTL', 300);
+define('FABB_BACKLINK_CACHE_DEFAULT_HOURS', 6);
+define('FABB_VERIFY_CODE_LENGTH', 6);
+define('FABB_VERIFY_CODE_EXPIRY', 300);
+define('FABB_RATE_LIMIT_SECONDS', 60);
+
 // ====================== 0. 插件初始化与配置 ======================
-// 获取配置项
+// 获取配置项（带静态缓存优化）
 function fabb_get_setting($key, $default = '') {
-    $settings = get_option('fabb_settings', array());
+    static $settings = null;
+    static $cached_time = 0;
+    
+    if ($settings === null || (time() - $cached_time) > FABB_CACHE_TTL) {
+        $settings = get_option('fabb_settings', array());
+        $cached_time = time();
+    }
+    
     return isset($settings[$key]) ? $settings[$key] : $default;
+}
+
+// 清除设置缓存（保存设置后调用）
+function fabb_clear_settings_cache() {
+    wp_cache_delete('fabb_settings', 'options');
+    wp_cache_delete('alloptions', 'options');
 }
 // 插件激活时初始化默认配置
 function fabb_plugin_init_default_settings() {
@@ -290,13 +320,50 @@ function fabb_register_apply_post_type() {
 // ====================== 2. 后台菜单与配置页面 ======================
 add_action('admin_menu', 'fabb_add_admin_menu');
 function fabb_add_admin_menu() {
+    add_menu_page(
+        '友链管理',
+        '友链管理',
+        'manage_links',
+        'fabb-main',
+        '',
+        'dashicons-admin-links',
+        30
+    );
+    
     add_submenu_page(
-        'link-manager.php',
+        'fabb-main',
         '友链设置',
         '友链设置',
         'manage_links',
         'fabb-settings',
         'fabb_render_settings_page'
+    );
+    
+    add_submenu_page(
+        'fabb-main',
+        '链接申请管理',
+        '链接申请',
+        'manage_links',
+        'edit.php?post_type=link_apply',
+        ''
+    );
+    
+    add_submenu_page(
+        'fabb-main',
+        '链接分类管理',
+        '链接分类',
+        'manage_links',
+        'edit-tags.php?taxonomy=link_category',
+        ''
+    );
+    
+    add_submenu_page(
+        'fabb-main',
+        '所有链接',
+        '所有链接',
+        'manage_links',
+        'link-manager.php',
+        ''
     );
 }
 // ====================== 3. 后台配置页面 ======================
@@ -1434,165 +1501,216 @@ function fabb_handle_apply_filters($query) {
     }
 }
 // ====================== 7. 智能反链检测核心函数 ======================
-function fabb_check_backlink($target_url) {
+// 反链检测结果缓存获取
+function fabb_get_backlink_cache($target_url) {
+    $cache_key = 'fabb_backlink_' . md5($target_url);
+    return get_transient($cache_key);
+}
+
+// 反链检测结果缓存设置
+function fabb_set_backlink_cache($target_url, $result) {
+    $cache_key = 'fabb_backlink_' . md5($target_url);
+    $cache_hours = absint(fabb_get_setting('backlink_cache_hours', FABB_BACKLINK_CACHE_DEFAULT_HOURS));
+    $cache_hours = max(1, min(24, $cache_hours));
+    set_transient($cache_key, $result, $cache_hours * HOUR_IN_SECONDS);
+}
+
+// 防SSRF验证
+function fabb_validate_url_safe($url) {
+    if (empty($url) || !wp_http_validate_url($url)) {
+        return false;
+    }
+    
+    $parsed = parse_url($url);
+    $host = $parsed['host'] ?? '';
+    
+    if (empty($host)) {
+        return false;
+    }
+    
+    $forbidden_hosts = ['localhost', '127.0.0.1', '0.0.0.0', '::1'];
+    if (in_array(strtolower($host), $forbidden_hosts)) {
+        return false;
+    }
+    
+    if (preg_match('/^(10\.|172\.(1[6-9]|2[0-9]|3[01])\.|192\.168\.)/', $host)) {
+        return false;
+    }
+    
+    $ip = gethostbyname($host);
+    if ($ip !== $host && preg_match('/^(10\.|172\.(1[6-9]|2[0-9]|3[01])\.|192\.168\.|127\.)/', $ip)) {
+        return false;
+    }
+    
+    return true;
+}
+
+// 添加AJAX端点用于JS动态网页检测
+add_action('wp_ajax_fabb_check_backlink_js', 'fabb_check_backlink_js_ajax');
+add_action('wp_ajax_nopriv_fabb_check_backlink_js', 'fabb_check_backlink_js_ajax');
+
+function fabb_check_backlink_js_ajax() {
+    check_ajax_referer('fabb_check_js_nonce', 'nonce');
+    
+    $url = sanitize_url($_POST['url'] ?? '');
+    if (empty($url) || !wp_http_validate_url($url)) {
+        wp_send_json_error(['message' => '无效的URL']);
+        return;
+    }
+    
+    $force_check = isset($_POST['force']) && $_POST['force'] === '1';
+    $result = fabb_check_backlink($url, $force_check);
+    
+    wp_send_json_success(['has_backlink' => $result]);
+}
+
+// 反链检测核心函数（优化版）
+function fabb_check_backlink($target_url, $force_check = false) {
     if (empty($target_url)) return false;
     
-    // 检查白名单
-    $whitelist = fabb_get_setting('backlink_whitelist', '');
-    if (!empty($whitelist)) {
-        $whitelist_domains = array_map('trim', explode("\n", $whitelist));
-        $target_host = parse_url($target_url, PHP_URL_HOST);
-        $target_host_clean = preg_replace('/^www\./', '', $target_host);
-        
-        foreach ($whitelist_domains as $domain) {
-            $domain_clean = preg_replace('/^www\./', '', trim($domain));
-            if ($target_host_clean === $domain_clean) {
-                return 'whitelisted';
-            }
+    $target_url = trim($target_url);
+    
+    if (!fabb_validate_url_safe($target_url)) {
+        return false;
+    }
+    
+    if (!$force_check) {
+        $cached = fabb_get_backlink_cache($target_url);
+        if ($cached !== false) {
+            return $cached;
         }
+    }
+    
+    $whitelist_result = fabb_check_whitelist($target_url);
+    if ($whitelist_result === 'whitelisted') {
+        fabb_set_backlink_cache($target_url, 'whitelisted');
+        return 'whitelisted';
+    }
+    if ($whitelist_result === 'skip') {
+        return false;
     }
     
     $site_host = parse_url(home_url(), PHP_URL_HOST);
     $site_host_clean = preg_replace('/^www\./', '', $site_host);
-    $site_host_www = 'www.' . $site_host_clean;
-    $site_url_full = home_url();
+    $site_url_full = trailingslashit(home_url());
     $site_url_http = str_replace('https://', 'http://', $site_url_full);
     $site_url_https = str_replace('http://', 'https://', $site_url_full);
     $site_name = get_bloginfo('name');
-    $keywords_str = fabb_get_setting('backlink_keywords', '友情链接,友链,友人帐,合作伙伴,推荐网站,友情,友站,友邻,小伙伴,站点推荐,博客邻居,友情互链,交换链接,friend,friends,friendly,link,links,flink,blogroll,partner,partners,exchange,site,sites,follow,following,community');
-    $friend_link_keywords = array_map('trim', explode(',', $keywords_str));
-    $friend_link_keywords = array_filter($friend_link_keywords);
-    $request_args = [
-        'timeout' => 15,
-        'sslverify' => false,
-        'redirection' => 5,
-        'user-agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML like Gecko) Chrome/124.0.0.0 Safari/537.36 Edg/124.0.0.0',
-        'headers' => [
-            'Accept' => 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
-            'Accept-Language' => 'zh-CN,zh;q=0.9,en;q=0.8',
-            'Accept-Encoding' => 'gzip, deflate, br',
-            'Connection' => 'keep-alive',
-            'Upgrade-Insecure-Requests' => '1',
-        ]
-    ];
-    $check_page_for_backlink = function($body) use ($site_host_clean, $site_host_www, $site_url_full, $site_url_http, $site_url_https, $site_name) {
-        if (empty($body)) return false;
+    $site_host_www = 'www.' . $site_host_clean;
+    
+    $host_pattern = '/\b' . preg_quote($site_host_clean, '/') . '\b/i';
+    
+    $check_page_for_backlink = function($body) use ($host_pattern, $site_host_clean, $site_host_www, $site_url_full, $site_url_http, $site_url_https, $site_name) {
+        if (empty($body) || !is_string($body)) return false;
         
-        $host_pattern = '/\b' . preg_quote($site_host_clean, '/') . '\b/i';
-        if (
-            preg_match($host_pattern, $body) ||
-            stripos($body, $site_host_www) !== false ||
-            stripos($body, $site_url_full) !== false ||
-            stripos($body, $site_url_http) !== false ||
-            stripos($body, $site_url_https) !== false ||
-            (mb_strlen($site_name) >= 2 && stripos($body, $site_name) !== false)
-        ) {
-            return true;
+        if (preg_match($host_pattern, $body)) return true;
+        if (stripos($body, $site_host_www) !== false) return true;
+        if (stripos($body, $site_url_full) !== false) return true;
+        if (stripos($body, $site_url_http) !== false) return true;
+        if (stripos($body, $site_url_https) !== false) return true;
+        
+        if (mb_strlen($site_name) >= 2) {
+            if (stripos($body, $site_name) !== false) return true;
+            
+            preg_match('/<title[^>]*>(.*?)<\/title>/is', $body, $title_match);
+            if (!empty($title_match[1]) && (stripos($title_match[1], $site_name) !== false || stripos($title_match[1], $site_host_clean) !== false)) {
+                return true;
+            }
+            
+            preg_match('/<meta[^>]*name=["\']description["\'][^>]*content=["\']([^"\']*)["\'][^>]*>/is', $body, $meta_match);
+            if (!empty($meta_match[1]) && (stripos($meta_match[1], $site_name) !== false || stripos($meta_match[1], $site_host_clean) !== false)) {
+                return true;
+            }
         }
-        preg_match('/<title[^>]*>(.*?)<\/title>/is', $body, $title_match);
-        if (!empty($title_match[1]) && (stripos($title_match[1], $site_name) !== false || stripos($title_match[1], $site_host_clean) !== false)) {
-            return true;
-        }
-        preg_match('/<meta[^>]*name=["\']description["\'][^>]*content=["\']([^"\']*)["\'][^>]*>/is', $body, $meta_match);
-        if (!empty($meta_match[1]) && (stripos($meta_match[1], $site_name) !== false || stripos($meta_match[1], $site_host_clean) !== false)) {
-            return true;
-        }
+        
         if (fabb_get_setting('check_image_links', 'on') === 'on') {
-            preg_match_all('/<img\s+[^>]*src=["\']([^"\']+)["\'][^>]*alt=["\']([^"\']*)["\'][^>]*title=["\']([^"\']*)["\'][^>]*>/is', $body, $img_matches);
+            preg_match_all('/<img\s+[^>]*src=["\']([^"\']+)["\'][^>]*>/is', $body, $img_matches);
             if (!empty($img_matches[1])) {
-                foreach ($img_matches[1] as $index => $img_src) {
-                    $img_alt = isset($img_matches[2][$index]) ? $img_matches[2][$index] : '';
-                    $img_title = isset($img_matches[3][$index]) ? $img_matches[3][$index] : '';
-                    
-                    if (
-                        preg_match($host_pattern, $img_src) ||
-                        preg_match($host_pattern, $img_alt) ||
-                        preg_match($host_pattern, $img_title) ||
-                        stripos($img_src, $site_host_www) !== false ||
-                        stripos($img_alt, $site_host_www) !== false ||
-                        stripos($img_title, $site_host_www) !== false ||
-                        stripos($img_src, $site_url_full) !== false ||
-                        stripos($img_alt, $site_url_full) !== false ||
-                        stripos($img_title, $site_url_full) !== false ||
-                        stripos($img_src, $site_url_http) !== false ||
-                        stripos($img_alt, $site_url_http) !== false ||
-                        stripos($img_title, $site_url_http) !== false ||
-                        stripos($img_src, $site_url_https) !== false ||
-                        stripos($img_alt, $site_url_https) !== false ||
-                        stripos($img_title, $site_url_https) !== false ||
-                        (mb_strlen($site_name) >= 2 && (stripos($img_alt, $site_name) !== false || stripos($img_title, $site_name) !== false))
-                    ) {
+                foreach ($img_matches[1] as $img_src) {
+                    if (preg_match($host_pattern, $img_src) || stripos($img_src, $site_host_www) !== false || stripos($img_src, $site_url_full) !== false) {
                         return true;
                     }
                 }
             }
         }
+        
         return false;
     };
+    
+    $request_args = [
+        'timeout' => FABB_REQUEST_TIMEOUT,
+        'sslverify' => false,
+        'redirection' => 5,
+        'user-agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36 Edg/124.0.0.0',
+        'headers' => [
+            'Accept' => 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            'Accept-Language' => 'zh-CN,zh;q=0.9,en;q=0.8',
+        ]
+    ];
+    
     $safe_remote_get = function($url, $args) {
         $response = wp_remote_get($url, $args);
         if (is_wp_error($response)) {
-            sleep(2);
+            sleep(FABB_BACKLINK_RETRY_DELAY);
             $response = wp_remote_get($url, $args);
         }
         return $response;
     };
+    
     $response = $safe_remote_get($target_url, $request_args);
     if (is_wp_error($response)) return false;
+    
     $body = wp_remote_retrieve_body($response);
     if (empty($body)) return false;
+    
     if ($check_page_for_backlink($body)) {
+        fabb_set_backlink_cache($target_url, true);
         return true;
     }
+    
     $base_url = trailingslashit($target_url);
     $candidate_links = [];
     $all_links = [];
+    
     preg_match_all('/<a\s+[^>]*href=["\']([^"\']+)["\'][^>]*>(.*?)<\/a>/is', $body, $matches);
     
     if (!empty($matches[1])) {
+        $keywords_str = fabb_get_setting('backlink_keywords', '友情链接,友链,友人帐,合作伙伴,推荐网站,友情,友站,友邻,小伙伴,站点推荐,博客邻居,友情互链,交换链接,friend,friends,friendly,link,links,flink,blogroll,partner,partners,exchange,site,sites,follow,following,community');
+        $friend_link_keywords = array_filter(array_map('trim', explode(',', $keywords_str)));
+        
         foreach ($matches[1] as $index => $href) {
             $href = trim($href);
-            $link_text = trim(strip_tags($matches[2][$index]));
+            $link_text = trim(strip_tags($matches[2][$index] ?? ''));
             
-            if (
-                empty($href) ||
-                strpos($href, 'javascript:') === 0 ||
-                strpos($href, 'mailto:') === 0 ||
-                strpos($href, 'tel:') === 0 ||
-                strpos($href, '#') === 0 ||
-                strpos($href, '?') === 0
-            ) continue;
+            if (empty($href) || strpos($href, 'javascript:') === 0 || strpos($href, 'mailto:') === 0 || strpos($href, 'tel:') === 0 || $href[0] === '#' || $href[0] === '?') continue;
+            
             if (strpos($href, 'http') !== 0) {
                 $href = $base_url . ltrim($href, '/');
             }
+            
             $link_host = parse_url($href, PHP_URL_HOST);
             $target_host = parse_url($target_url, PHP_URL_HOST);
             if (empty($link_host) || empty($target_host)) continue;
             if (preg_replace('/^www\./', '', $link_host) !== preg_replace('/^www\./', '', $target_host)) continue;
+            
             $href_normalized = trailingslashit(strtolower($href));
             if (in_array($href_normalized, $all_links)) continue;
             $all_links[] = $href_normalized;
-            $has_keyword_in_url = false;
+            
+            $has_keyword = false;
             foreach ($friend_link_keywords as $kw) {
-                if (stripos($href, $kw) !== false) {
-                    $has_keyword_in_url = true;
+                if (stripos($href, $kw) !== false || (!empty($link_text) && mb_stripos($link_text, $kw) !== false)) {
+                    $has_keyword = true;
                     break;
                 }
             }
-            $has_keyword_in_text = false;
-            if (!empty($link_text)) {
-                foreach ($friend_link_keywords as $kw) {
-                    if (mb_stripos($link_text, $kw) !== false) {
-                        $has_keyword_in_text = true;
-                        break;
-                    }
-                }
-            }
-            if ($has_keyword_in_url || $has_keyword_in_text) {
+            
+            if ($has_keyword) {
                 $candidate_links[] = $href;
             }
         }
     }
+    
     if (fabb_get_setting('auto_check_common_paths', 'on') === 'on') {
         $common_paths = ['friend', 'link', 'links', 'friends', 'blogroll', 'flink', 'partner', 'partners', 'site', 'sites'];
         foreach ($common_paths as $path) {
@@ -1604,23 +1722,46 @@ function fabb_check_backlink($target_url) {
             }
         }
     }
+    
     if (!empty($candidate_links)) {
-        $candidate_links = array_slice($candidate_links, 0, 10);
+        $candidate_links = array_slice($candidate_links, 0, FABB_CANDIDATE_LINKS_LIMIT);
         foreach ($candidate_links as $flink_url) {
-            usleep(300000);
+            usleep(FABB_BACKLINK_CHECK_DELAY);
             $flink_response = $safe_remote_get($flink_url, $request_args);
             if (is_wp_error($flink_response)) continue;
             $flink_body = wp_remote_retrieve_body($flink_response);
             if (empty($flink_body)) continue;
             if ($check_page_for_backlink($flink_body)) {
+                fabb_set_backlink_cache($target_url, true);
                 return true;
             }
         }
     }
+    
+    fabb_set_backlink_cache($target_url, false);
     return false;
 }
-// 批量检测所有已上线友链
-function fabb_batch_check_all_backlinks() {
+
+// 检查白名单
+function fabb_check_whitelist($target_url) {
+    $whitelist = fabb_get_setting('backlink_whitelist', '');
+    if (empty($whitelist)) return 'not_in_list';
+    
+    $whitelist_domains = array_map('trim', explode("\n", $whitelist));
+    $target_host = parse_url($target_url, PHP_URL_HOST);
+    $target_host_clean = preg_replace('/^www\./', '', $target_host);
+    
+    foreach ($whitelist_domains as $domain) {
+        $domain_clean = preg_replace('/^www\./', '', trim($domain));
+        if ($target_host_clean === $domain_clean) {
+            return 'whitelisted';
+        }
+    }
+    
+    return 'not_in_list';
+}
+// 批量检测所有已上线友链（优化版）
+function fabb_batch_check_all_backlinks($force_check = false) {
     @set_time_limit(0);
     
     $approved_posts = get_posts(array(
@@ -1631,18 +1772,37 @@ function fabb_batch_check_all_backlinks() {
         'numberposts' => -1,
         'fields' => 'ids',
     ));
+    
     $total = count($approved_posts);
     $invalid = 0;
+    $checked = 0;
+    
     foreach ($approved_posts as $post_id) {
         $link_url = get_post_meta($post_id, '_fabb_link_url', true);
         if (empty($link_url)) continue;
-        try {
-            $has_backlink = fabb_check_backlink($link_url);
-        } catch (Exception $e) {
-            $has_backlink = false;
+        
+        if (!$force_check) {
+            $cached = fabb_get_backlink_cache($link_url);
+            if ($cached !== false) {
+                $has_backlink = $cached;
+                $checked++;
+            } else {
+                try {
+                    $has_backlink = fabb_check_backlink($link_url);
+                    $checked++;
+                } catch (Exception $e) {
+                    $has_backlink = false;
+                }
+            }
+        } else {
+            try {
+                $has_backlink = fabb_check_backlink($link_url, true);
+                $checked++;
+            } catch (Exception $e) {
+                $has_backlink = false;
+            }
         }
         
-        // 处理白名单返回值
         if ($has_backlink === 'whitelisted') {
             update_post_meta($post_id, '_fabb_backlink_status', 'whitelisted');
         } else {
@@ -1650,9 +1810,9 @@ function fabb_batch_check_all_backlinks() {
         }
         
         update_post_meta($post_id, '_fabb_backlink_check_time', time());
-        if (!$has_backlink) {
+        
+        if (!$has_backlink && $has_backlink !== 'whitelisted') {
             $invalid++;
-            // 发送掉链提醒邮件
             $alert_email = fabb_get_setting('alert_email', get_option('admin_email'));
             if (!empty($alert_email)) {
                 $last_alert_time = get_post_meta($post_id, '_fabb_last_backlink_alert_time', true);
@@ -1672,9 +1832,25 @@ function fabb_batch_check_all_backlinks() {
                 }
             }
         }
-        usleep(200000);
+        usleep(FABB_AUTO_CHECK_DELAY);
     }
-    return array('total' => $total, 'invalid' => $invalid);
+    
+    return array('total' => $total, 'invalid' => $invalid, 'checked' => $checked);
+}
+
+// 添加AJAX端点用于JS动态网页检测
+add_action('wp_ajax_fabb_check_backlink_js', 'fabb_check_backlink_js_ajax');
+add_action('wp_ajax_nopriv_fabb_check_backlink_js', 'fabb_check_backlink_js_ajax');
+
+// 添加批量检测AJAX端点
+add_action('wp_ajax_fabb_batch_check_ajax', 'fabb_batch_check_ajax');
+function fabb_batch_check_ajax() {
+    check_ajax_referer('fabb_batch_check_nonce', 'nonce');
+    
+    $force = isset($_POST['force']) && $_POST['force'] === '1';
+    $result = fabb_batch_check_all_backlinks($force);
+    
+    wp_send_json_success($result);
 }
 // 同步原生链接到插件
 function fabb_sync_bookmarks_to_apply() {
@@ -1794,7 +1970,7 @@ function fabb_auto_approve_applications() {
             $approved_count++;
         }
         unset($has_backlink, $link_url);
-        usleep(200000);
+        usleep(FABB_AUTO_CHECK_DELAY);
     }
     if ($approved_count > 0) {
         $admin_email = fabb_get_setting('alert_email', get_option('admin_email'));
@@ -1811,8 +1987,34 @@ function fabb_auto_check_backlinks() {
     fabb_batch_check_all_backlinks();
 }
 add_action('fabb_auto_check_backlink_hook', 'fabb_auto_check_backlinks');
-// ====================== 10. 列表行操作按钮 + 批量操作 ======================
+// ====================== 10. 列表行操作按钮 + 批量操作 + 回收站显示 ======================
 add_filter('post_row_actions', 'fabb_add_apply_row_actions', 10, 2);
+add_filter('views_edit-link_apply', 'fabb_add_apply_views');
+add_filter('query_vars', 'fabb_add_trash_query_var');
+
+function fabb_add_trash_query_var($vars) {
+    $vars[] = 'trash_view';
+    return $vars;
+}
+
+function fabb_add_apply_views($views) {
+    global $wpdb;
+    
+    $trash_count = wp_count_posts('link_apply');
+    $trash_num = $trash_count->trash;
+    
+    if ($trash_num > 0) {
+        $current = isset($_GET['post_status']) && $_GET['post_status'] === 'trash' ? ' class="current"' : '';
+        $views['trash'] = sprintf(
+            '<a href="%s"%s>回收站 <span class="count">(%d)</span></a>',
+            esc_url(admin_url('edit.php?post_type=link_apply&post_status=trash')),
+            $current,
+            $trash_num
+        );
+    }
+    
+    return $views;
+}
 function fabb_add_apply_row_actions($actions, $post) {
     if ($post->post_type !== 'link_apply') return $actions;
     
@@ -1936,7 +2138,7 @@ function fabb_handle_bulk_actions($redirect_to, $doaction, $post_ids) {
             update_post_meta($post_id, '_fabb_backlink_check_time', time());
             if (!$has_backlink) $invalid++;
             $count++;
-            usleep(200000);
+            usleep(FABB_AUTO_CHECK_DELAY);
         }
         $redirect_to = add_query_arg(array('bulk_checked' => $count, 'bulk_invalid' => $invalid), $redirect_to);
     } elseif ($doaction === 'bulk_add_to_whitelist') {
@@ -2408,6 +2610,8 @@ function fabb_render_modify_form_shortcode() {
                             }
                         }, 1000);
                         window.location.href = "' . add_query_arg('code_sent', '1', wp_get_referer()) . '";
+                    } else if (result === "rate_limited") {
+                        alert("发送过于频繁，请60秒后再试");
                     } else {
                         alert("验证码发送失败，请稍后重试");
                     }
@@ -2461,13 +2665,21 @@ function fabb_send_modify_verify_code() {
         echo 'error';
         exit;
     }
+    
     $email = sanitize_email($_POST['email']);
     $url = sanitize_url($_POST['url']);
     if (!is_email($email) || !wp_http_validate_url($url)) {
         echo 'error';
         exit;
     }
-    // 验证是否存在对应的友链记录
+    
+    $rate_limit_key = 'fabb_verify_rate_' . md5($email);
+    $last_send = get_transient($rate_limit_key);
+    if ($last_send !== false) {
+        echo 'rate_limited';
+        exit;
+    }
+    
     $existing_posts = get_posts(array(
         'post_type' => 'link_apply',
         'meta_query' => array(
@@ -2482,13 +2694,12 @@ function fabb_send_modify_verify_code() {
         echo 'error';
         exit;
     }
-    // 生成6位数字验证码
-    $code = str_pad(rand(0, 999999), 6, '0', STR_PAD_LEFT);
-    $expire_time = time() + 300; // 5分钟有效
-    // 存储验证码到临时缓存
+    
+    $code = str_pad(rand(0, 999999), FABB_VERIFY_CODE_LENGTH, '0', STR_PAD_LEFT);
     $transient_key = 'fabb_modify_code_' . md5($email . $url);
-    set_transient($transient_key, $code, 300);
-    // 发送邮件
+    set_transient($transient_key, $code, FABB_VERIFY_CODE_EXPIRY);
+    set_transient($rate_limit_key, time(), FABB_RATE_LIMIT_SECONDS);
+    
     $subject = '友链修改验证码';
     $message = fabb_get_email_template('verify_code', array(
         'site_name' => get_bloginfo('name'),
@@ -2716,8 +2927,58 @@ function fabb_random_bookmarks_shortcode($atts) {
     
     return $output;
 }
-// ====================== 15. CSS样式 ======================
+// ====================== 15. CSS样式（优化版） ======================
 add_action('wp_enqueue_scripts', 'fabb_enqueue_bookmarks_styles');
+add_action('admin_enqueue_scripts', 'fabb_enqueue_admin_styles');
+
+function fabb_enqueue_admin_styles($hook) {
+    if (strpos($hook, 'link_apply') === false && strpos($hook, 'fabb') === false) {
+        return;
+    }
+    
+    wp_enqueue_style('fabb-admin-style', false, array(), '3.5.0');
+    $admin_css = '
+    .fabb-stats-grid {
+        display: grid;
+        grid-template-columns: repeat(6, 1fr);
+        gap: 20px;
+        margin: 20px 0;
+    }
+    .fabb-stat-card {
+        background: #fff;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        border: 1px solid #e0e0e0;
+    }
+    .fabb-stat-card h3 {
+        margin: 0 0 10px 0;
+        font-size: 14px;
+        color: #666;
+        font-weight: 500;
+    }
+    .fabb-stat-card p {
+        margin: 0;
+        font-size: 28px;
+        font-weight: 600;
+        color: #4ecdc4;
+    }
+    .fabb-stat-card .stat-pending { color: #ffb900; }
+    .fabb-stat-card .stat-approved { color: #00b42a; }
+    .fabb-stat-card .stat-categories { color: #777bb4; }
+    @media (max-width: 1200px) {
+        .fabb-stats-grid { grid-template-columns: repeat(3, 1fr); }
+    }
+    @media (max-width: 782px) {
+        .fabb-stats-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+    @media (max-width: 480px) {
+        .fabb-stats-grid { grid-template-columns: 1fr; }
+    }
+    ';
+    wp_add_inline_style('fabb-admin-style', $admin_css);
+}
+
 function fabb_enqueue_bookmarks_styles() {
     $css = '
     :root {
@@ -2726,29 +2987,41 @@ function fabb_enqueue_bookmarks_styles() {
         --fabb-border-color: rgba(78, 205, 196, 0.3);
         --fabb-hover-bg: rgba(78, 205, 196, 0.1);
         --fabb-desc-opacity: 0.7;
+        --fabb-accent: #4ecdc4;
+        --fabb-accent-hover: #3dbbb3;
+        --fabb-success: #00b42a;
+        --fabb-warning: #ffb900;
+        --fabb-error: #d63638;
     }
     
     @media (prefers-color-scheme: dark) {
         :root {
-            --fabb-bg-color: #1e1e1e;
+            --fabb-bg-color: #1a1a1a;
             --fabb-text-color: #e0e0e0;
-            --fabb-border-color: rgba(78, 205, 196, 0.2);
+            --fabb-border-color: rgba(78, 205, 196, 0.25);
             --fabb-hover-bg: rgba(78, 205, 196, 0.15);
             --fabb-desc-opacity: 0.8;
         }
     }
     
+    body.admin_color_midnight .fabb-stat-card,
+    body.admin_color_sunrise .fabb-stat-card,
+    body.admin_color_ocean .fabb-stat-card,
+    body.admin_colorectric .fabb-stat-card,
+    .dark-theme,
     body.dark-mode,
-    body[data-theme="dark"],
-    .dark-theme {
-        --fabb-bg-color: #1e1e1e;
+    [data-theme="dark"],
+    .site-dark,
+    body.theme-dark {
+        --fabb-bg-color: #1a1a1a;
         --fabb-text-color: #e0e0e0;
-        --fabb-border-color: rgba(78, 205, 196, 0.2);
+        --fabb-border-color: rgba(78, 205, 196, 0.25);
         --fabb-hover-bg: rgba(78, 205, 196, 0.15);
         --fabb-desc-opacity: 0.8;
     }
     
-    .fabb-bookmarks-list {
+    .fabb-bookmarks-list,
+    ul.fabb-bookmarks-list {
         list-style: none !important;
         padding: 0 !important;
         margin: 30px 0 !important;
@@ -2756,24 +3029,31 @@ function fabb_enqueue_bookmarks_styles() {
         grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)) !important;
         gap: 15px !important;
     }
-    .fabb-bookmark-item {
+    
+    .fabb-bookmark-item,
+    li.fabb-bookmark-item {
         width: 100% !important;
         margin: 0 !important;
         padding: 0 !important;
+        list-style: none !important;
     }
+    
     .fabb-bookmark-card {
         box-sizing: border-box !important;
         background: var(--fabb-bg-color) !important;
         border: 1px solid var(--fabb-border-color) !important;
         border-radius: 8px !important;
         transition: all 0.3s ease !important;
+        height: 100%;
     }
+    
     .fabb-bookmark-card:hover {
         transform: translateY(-2px) !important;
-        box-shadow: 0 4px 12px rgba(0, 150, 136, 0.2) !important;
-        border-color: #4ecdc4 !important;
+        box-shadow: 0 4px 12px rgba(78, 205, 196, 0.2) !important;
+        border-color: var(--fabb-accent) !important;
         background: var(--fabb-hover-bg) !important;
     }
+    
     .fabb-bookmark-card a {
         display: flex !important;
         align-items: center !important;
@@ -2781,12 +3061,16 @@ function fabb_enqueue_bookmarks_styles() {
         text-decoration: none !important;
         gap: 12px !important;
         color: var(--fabb-text-color) !important;
+        height: 100%;
     }
+    
     .fabb-bookmark-image {
         display: inline-block !important;
         vertical-align: middle !important;
         object-fit: cover !important;
+        flex-shrink: 0;
     }
+    
     .fabb-bookmark-content {
         display: flex !important;
         flex-direction: column !important;
@@ -2794,26 +3078,32 @@ function fabb_enqueue_bookmarks_styles() {
         overflow: hidden !important;
         line-height: 1.4 !important;
         flex: 1 !important;
+        min-width: 0;
     }
+    
     .fabb-bookmark-name {
         font-weight: 600 !important;
         color: inherit !important;
         font-size: 1em !important;
         display: block !important;
+        word-break: break-word;
     }
+    
     .fabb-bookmark-desc {
         font-size: 0.85em !important;
         color: inherit !important;
         opacity: var(--fabb-desc-opacity) !important;
         display: block !important;
-        margin-top: 2px !important;
+        margin-top: 4px !important;
         line-height: 1.4 !important;
     }
+    
     .fabb-desc-single-line {
         overflow: hidden !important;
         text-overflow: ellipsis !important;
         white-space: nowrap !important;
     }
+    
     .fabb-desc-multi-line {
         white-space: normal !important;
         display: -webkit-box !important;
@@ -2821,69 +3111,185 @@ function fabb_enqueue_bookmarks_styles() {
         -webkit-box-orient: vertical !important;
         overflow: hidden !important;
     }
+    
     .fabb-bookmarks-empty {
         color: var(--fabb-text-color) !important;
         opacity: 0.6 !important;
-        padding: 10px !important;
+        padding: 20px !important;
+        text-align: center;
     }
+    
+    .fabb-form-notice,
+    .fabb-form-success,
+    .fabb-form-error {
+        padding: 15px !important;
+        border-radius: 8px !important;
+        margin-bottom: 20px !important;
+    }
+    
+    .fabb-form-notice {
+        background: var(--fabb-bg-color) !important;
+        border: 1px solid var(--fabb-border-color) !important;
+        color: var(--fabb-text-color) !important;
+    }
+    
+    .fabb-form-success {
+        background: rgba(0, 180, 42, 0.1) !important;
+        border: 1px solid var(--fabb-success) !important;
+        color: var(--fabb-success) !important;
+    }
+    
+    .fabb-form-error {
+        background: rgba(214, 54, 56, 0.1) !important;
+        border: 1px solid var(--fabb-error) !important;
+        color: var(--fabb-error) !important;
+    }
+    
     .fabb-apply-form input:focus,
     .fabb-apply-form textarea:focus,
     .fabb-modify-form input:focus,
     .fabb-modify-form textarea:focus {
         outline: none !important;
-        border-color: #4ecdc4 !important;
-        box-shadow: 0 0 0 2px rgba(78, 205, 196, 0.1) !important;
+        border-color: var(--fabb-accent) !important;
+        box-shadow: 0 0 0 3px rgba(78, 205, 196, 0.15) !important;
     }
+    
+    .fabb-form-submit button,
+    .fabb-form-submit input[type="submit"],
+    #fabb_send_code_btn {
+        background: var(--fabb-accent) !important;
+        color: #fff !important;
+        padding: 12px 30px !important;
+        border: none !important;
+        border-radius: 8px !important;
+        font-size: 16px !important;
+        cursor: pointer !important;
+        transition: background 0.3s ease !important;
+    }
+    
     .fabb-form-submit button:hover,
-    #fabb_send_code_btn:hover {
-        background: #3dbbb3 !important;
+    .fabb-form-submit input[type="submit"]:hover,
+    #fabb_send_code_btn:hover:not(:disabled) {
+        background: var(--fabb-accent-hover) !important;
     }
+    
     #fabb_send_code_btn:disabled {
         background: #999 !important;
         cursor: not-allowed !important;
     }
+    
     .fabb-apply-form,
     .fabb-modify-form {
         background: var(--fabb-bg-color) !important;
-        padding: 20px !important;
-        border-radius: 8px !important;
+        padding: 25px !important;
+        border-radius: 12px !important;
         border: 1px solid var(--fabb-border-color) !important;
+        max-width: 800px;
+        margin: 0 auto;
     }
+    
+    .fabb-form-group {
+        margin-bottom: 20px !important;
+    }
+    
     .fabb-form-group label {
+        display: block !important;
+        margin-bottom: 8px !important;
+        font-weight: 600 !important;
         color: var(--fabb-text-color) !important;
     }
+    
     .fabb-form-group input,
-    .fabb-form-group textarea {
+    .fabb-form-group textarea,
+    .fabb-form-group select {
+        width: 100% !important;
+        padding: 12px !important;
+        border: 1px solid var(--fabb-border-color) !important;
+        border-radius: 8px !important;
+        box-sizing: border-box !important;
         background: var(--fabb-bg-color) !important;
         color: var(--fabb-text-color) !important;
-        border: 1px solid var(--fabb-border-color) !important;
+        font-size: 14px !important;
     }
-    .fabb-form-group .description {
+    
+    .fabb-form-group textarea {
+        resize: vertical !important;
+    }
+    
+    .fabb-form-group .description,
+    .fabb-form-group p.description {
         color: var(--fabb-text-color) !important;
-        opacity: var(--fabb-desc-opacity) !important;
+        opacity: 0.7 !important;
+        margin-top: 5px !important;
+        font-size: 13px !important;
     }
+    
+    .fabb-bookmark-rss {
+        position: absolute !important;
+        top: 8px !important;
+        right: 8px !important;
+        color: #ff6600 !important;
+        text-decoration: none !important;
+        font-size: 16px !important;
+        z-index: 10 !important;
+        padding: 4px !important;
+        background: rgba(255,255,255,0.9) !important;
+        border-radius: 4px !important;
+        transition: all 0.2s ease !important;
+    }
+    
+    .dark-theme .fabb-bookmark-rss,
+    body.dark-mode .fabb-bookmark-rss,
+    [data-theme="dark"] .fabb-bookmark-rss {
+        background: rgba(0,0,0,0.5) !important;
+    }
+    
     .fabb-bookmark-rss:hover {
         color: #ff8800 !important;
+        transform: scale(1.1) !important;
     }
+    
+    .fabb-bookmark-rss svg {
+        display: block !important;
+    }
+    
     .fabb-plugin-footer {
         text-align: right !important;
         margin-top: 20px !important;
         font-size: 12px !important;
         opacity: 0.6 !important;
+        color: var(--fabb-text-color) !important;
     }
+    
     .fabb-plugin-footer a {
-        color: inherit !important;
+        color: var(--fabb-accent) !important;
         text-decoration: none !important;
+        transition: opacity 0.2s ease !important;
     }
+    
     .fabb-plugin-footer a:hover {
-        color: #4ecdc4 !important;
+        opacity: 0.8 !important;
+    }
+    
+    @media (max-width: 600px) {
+        .fabb-bookmarks-list {
+            grid-template-columns: 1fr !important;
+        }
+        
+        .fabb-bookmark-card a {
+            padding: 15px !important;
+        }
+        
+        .fabb-apply-form,
+        .fabb-modify-form {
+            padding: 15px !important;
+        }
     }
     ';
     
-    // 添加自定义CSS
     $custom_css = fabb_get_setting('custom_css', '');
     if (!empty($custom_css)) {
-        $css .= "\n\n/* 自定义CSS */\n" . $custom_css;
+        $css .= "\n\n/* Custom CSS */\n" . $custom_css;
     }
     
     wp_add_inline_style('wp-block-library', $css);

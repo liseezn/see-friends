@@ -1,6 +1,7 @@
 {
     "name": "SEE~Friends 友情链接管理",
-    "version": "3.4.1",
+    "slug": "see-friends",
+    "version": "3.5.0",
     "author": "liseezn",
     "author_url": "https://liseezn.top",
     "homepage": "https://github.com/liseezn/see-friends",
@@ -9,7 +10,11 @@
     "requires_wp": "5.6",
     "requires_php": "7.0",
     "description": "专为WordPress打造的智能化全流程友情链接管理插件，基于原生链接体系深度扩展，无冗余臃肿代码，轻量高性能。完整覆盖前端申请、后台审核、智能反链检测、定时监控、邮件通知、用户自助修改、RSS订阅抓取、友链文章聚合、数据导入导出一站式管理。",
-    "changelog": "<h4>版本 3.4.1</h4><h5>🎉 新增功能</h5><ul><li>新增更新包SHA256完整性安全验证，防止中间人攻击与恶意代码注入</li><li>新增info.json配置化验证开关，无需修改代码即可全局控制验证功能</li><li>完善插件自动更新底层逻辑，提升更新成功率</li></ul><h5>🚀 优化</h5><ul><li>优化插件头信息，符合WordPress官方插件规范</li><li>优化缓存机制，减少不必要的文件读取</li></ul><h5>🐛 Bug 修复</h5><ul><li>修复部分环境下自动更新提示异常的问题</li></ul><hr><h4>版本 3.4.0</h4><h5>🎉 新增功能</h5><ul><li>新增友情链接CSV批量导出/导入，完整适配WordPress原生链接数据表</li><li>新增邮件通知模板自定义功能，所有系统邮件文案可视化修改</li><li>新增插件后台一键自动更新功能，无需手动下载上传</li><li>新增独立link_apply友情链接申请表，完整留存申请元数据</li><li>新增合规匿名站点运行统计机制</li></ul><h5>🚀 优化</h5><ul><li>重构配置存储底层逻辑，彻底解决部分站点设置无法保存的问题</li><li>完善后台自动化定时任务体系</li><li>优化插件卸载数据留存规则，核心业务数据永久保留</li></ul><h5>🐛 Bug 修复</h5><ul><li>修复长期遗留的插件设置界面无法保存配置的致命BUG</li></ul>",
+    "short_description": "智能化全流程友情链接管理插件，支持申请审核、智能反链检测、定时监控与邮件通知",
+    "tags": ["友情链接", "友链管理", "反链检测", "自动审核", "数据导入导出", "邮件通知", "RSS订阅", "用户自助修改"],
+    "license": "GPLv3",
+    "license_uri": "https://github.com/liseezn/see-friends/blob/main/LICENSE",
+    "changelog": "<h4>版本 3.5.0</h4><h5>🎉 新增功能</h5><ul><li>新增安全设置模块：图形验证码、邮箱验证码冷却、最大尝试次数、锁定时间</li><li>新增邮件发件人+主题自定义，支持全场景邮件主题自定义</li><li>后台重构合并为6大核心配置模块，操作更简洁</li><li>支持GitHub/Cloudflare双更新源自由切换</li><li>新增更新文件SHA256完整性验证，防文件篡改</li></ul><h5>🚀 优化与修复</h5><ul><li>修复Argon主题手动切换黑白模式样式不兼容问题</li><li>修复后台审核按钮显示异常、状态判断漏洞</li><li>优化前端表单安全防护，防恶意提交与暴力尝试</li><li>优化反链检测性能，降低服务器请求压力</li><li>完善插件激活/停用/卸载定时任务与数据清理逻辑</li></ul><hr><h4>版本 3.4.1</h4><h5>🎉 新增功能</h5><ul><li>新增更新包SHA256完整性安全验证，防止中间人攻击与恶意代码注入</li><li>新增info.json配置化验证开关，无需修改代码即可全局控制验证功能</li><li>完善插件自动更新底层逻辑，提升更新成功率</li></ul><h5>🚀 优化</h5><ul><li>优化插件头信息，符合WordPress官方插件规范</li><li>优化缓存机制，减少不必要的文件读取</li></ul><h5>🐛 Bug 修复</h5><ul><li>修复部分环境下自动更新提示异常的问题</li></ul><hr><h4>版本 3.4.0</h4><h5>🎉 新增功能</h5><ul><li>新增友情链接CSV批量导出/导入，完整适配WordPress原生链接数据表</li><li>新增邮件通知模板自定义功能，所有系统邮件文案可视化修改</li><li>新增插件后台一键自动更新功能，无需手动下载上传</li><li>新增独立link_apply友情链接申请表，完整留存申请元数据</li><li>新增合规匿名站点运行统计机制</li></ul><h5>🚀 优化</h5><ul><li>重构配置存储底层逻辑，彻底解决部分站点设置无法保存的问题</li><li>完善后台自动化定时任务体系</li><li>优化插件卸载数据留存规则，核心业务数据永久保留</li></ul><h5>🐛 Bug 修复</h5><ul><li>修复长期遗留的插件设置界面无法保存配置的致命BUG</li></ul>",
     "installation": "<p>1. 前往GitHub Releases下载最新版see-friends.zip</p><p>2. 登录WordPress后台 → 插件 → 安装插件 → 上传插件</p><p>3. 上传完成后激活插件，自动初始化配置与定时任务，无需额外设置</p><p>4. 已安装用户可直接在插件页面点击「更新」一键升级</p>",
     "banner_low": "https://raw.githubusercontent.com/liseezn/see-friends/main/assets/banner-772x250.png",
     "banner_high": "https://raw.githubusercontent.com/liseezn/see-friends/main/assets/banner-1544x500.png",
@@ -17,5 +22,5 @@
         "enabled": true,
         "hash": ""
     },
-    "force_update": "3.4.1"
+    "force_update": "3.5.0"
 }

@@ -18,7 +18,8 @@
 - 完美自适应浅色/深色主题，CSS 原生变量适配，卡片美观整洁
 - 完全开源免费、持续维护更新，欢迎提交 Issue、Bug 反馈与 PR 贡献
 - 支持后台一键自动更新，多更新源（GitHub/Cloudflare）自由切换
-
+主页面截图
+(https://raw.githubusercontent.com/liseezn/see-friends/refs/heads/main/img/see-friends-home.jpg)
 ## 🚀 核心功能
 ### 1. 智能反链检测（核心模块）
 - 全场景检测：首页、页脚、导航栏、隐藏模块、友人帐、独立友链页、图片锚点友链
